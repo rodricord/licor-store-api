@@ -3,7 +3,7 @@ from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
 
 # NUEVAS IMPORTACIONES DE SEGURIDAD
-from passlib.context import CryptContext
+import bcrypt
 from pydantic import BaseModel
 
 # 0. Conexion a SUPABASE
@@ -19,9 +19,11 @@ Base = declarative_base()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def hash_password(password: str) -> str:
-    """Función para transformar la clave en texto plano a un hash encriptado"""
-    return pwd_context.hash(password)
-
+    """Encripta la contraseña usando bcrypt de forma nativa"""
+    # Acortamos a 72 bytes por seguridad si fuera necesario y generamos el hash
+    pwd_bytes = password.encode('utf-8')[:72]
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(pwd_bytes, salt).decode('utf-8')
 
 # 2. DEFINIR LA TABLA DEL CATÁLOGO DE LICORES
 class Licor(Base):
