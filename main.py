@@ -16,7 +16,7 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 # NUEVO: Configuración del encriptador de contraseñas
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
 
 def hash_password(password: str) -> str:
     """Encripta la contraseña usando bcrypt de forma nativa"""
