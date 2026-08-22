@@ -3,8 +3,7 @@ from sqlalchemy import create_engine, Column, Integer, String, Float
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
 
 # 0. Conexion a SUPABASE
-"postgresql://postgres:Laleyenda1%2A@db.czbipazdslmmfenkxzqg.supabase.co:5432/postgres"
-
+"postgresql://postgres.czbipazdslmmfenkxzqg:[Laleyenda1*]@aws-0-us-west-2.pooler.supabase.com:6543/postgres"
 
 # 1. Configurar la Base de Datos (SQLAlchemy creará este archivo automáticamente)
 DATABASE_URL = "sqlite:///./licores.db"
