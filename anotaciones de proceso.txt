@@ -1,0 +1,48 @@
+
+
+1. python -m venv venv
+
+Propósito: Crea un entorno virtual aislado en tu carpeta local para que las librerías del proyecto no interfieran con las de tu sistema operativo.
+
+venv\Scripts\activate (en Windows)
+
+Propósito: Activa el entorno virtual. Indica a la consola que todas las librerías que instales a continuación perteneces solo a este proyecto.
+
+2. Instalación de Dependencias Locales
+pip install fastapi uvicorn sqlalchemy psycopg2-binary cloudinary python-multipart
+
+Propósito: Instala los paquetes principales: FastAPI (marco web), Uvicorn (servidor local), SQLAlchemy (ORM de base de datos), psycopg2-binary (driver para PostgreSQL/Supabase), Cloudinary (gestor de imágenes) y python-multipart (procesador de formularios de imágenes).
+
+pip freeze > requirements.txt
+
+Propósito: Genera el archivo requirements.txt guardando la lista exacta y las versiones de todas las librerías instaladas para que Render sepa qué descargar.
+
+3. Prueba y Ejecución Local
+python -m uvicorn main:app --reload
+
+Propósito: Levanta el servidor local de desarrollo en [http://127.0.0.1:8000](http://127.0.0.1:8000). El parámetro --reload hace que el servidor se reinicie automáticamente cada vez que guardas cambios en tu archivo main.py.
+
+4. Control de Versiones con Git y GitHub
+git init
+
+Propósito: Inicializa un repositorio de Git local en la carpeta del proyecto para comenzar a rastrear los cambios de código.
+
+git add .
+
+Propósito: Prepara (stage) todos los archivos creados o modificados en la carpeta actual para empaquetarlos en la siguiente foto o versión del código.
+
+git commit -m "primer commit del proyecto"
+
+Propósito: Guarda una instantánea (snapshot) local de tu código etiquetada con un mensaje descriptivo.
+
+git branch -M main
+
+Propósito: Renombra la rama principal de trabajo local a main para cumplir con los estándares modernos de GitHub y Render.
+
+git remote add origin [https://github.com/tu-usuario/tu-repositorio.git](https://github.com/tu-usuario/tu-repositorio.git)
+
+Propósito: Vincula tu repositorio local de VS Code con tu repositorio remoto creado en tu cuenta de GitHub.
+
+git push -u origin main
+
+Propósito: Sube por primera vez todo el historial de cambios y archivos desde tu computadora hacia GitHub.
