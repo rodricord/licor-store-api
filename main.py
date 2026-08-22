@@ -4,7 +4,7 @@ from sqlalchemy.orm import declarative_base, sessionmaker, Session
 
 # 0. Conexion a SUPABASE
 DATABASE_URL = "postgresql://postgres.czbipazdslmmfenkxzqg:[Laleyenda1*]@aws-0-us-west-2.pooler.supabase.com:6543/postgres"
-               
+engine = create_engine(DATABASE_URL)               
 # 1. Configurar la Base de Datos (SQLAlchemy creará este archivo automáticamente)
 DATABASE_URL = "sqlite:///./licores.db"
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
