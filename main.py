@@ -148,3 +148,6 @@ def subir_imagen(file: UploadFile = File(...)):
     except Exception as e:
         # Si algo falla, devolverá el error exacto en lugar de congelarse
         raise HTTPException(status_code=500, detail=f"Error al subir imagen: {str(e)}")
+@app.get("/test-db")
+def test_db():
+    return {"conexion_actual": str(engine.url)}        
