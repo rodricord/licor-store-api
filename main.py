@@ -2,6 +2,10 @@ from fastapi import FastAPI, Depends
 from sqlalchemy import create_engine, Column, Integer, String, Float
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
 
+# 0. Conexion a SUPABASE
+postgresql://postgres.czbipazdslmmfenkxzqg:[Laleyenda1*]@aws-0-us-west-2.pooler.supabase.com:5432/postgres
+
+
 # 1. Configurar la Base de Datos (SQLAlchemy creará este archivo automáticamente)
 DATABASE_URL = "sqlite:///./licores.db"
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
