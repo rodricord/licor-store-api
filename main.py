@@ -17,13 +17,20 @@ Base = declarative_base()
 
 # NUEVO: Configuración del encriptador de contraseñas
 
-
 def hash_password(password: str) -> str:
     """Encripta la contraseña usando bcrypt de forma nativa"""
     # Acortamos a 72 bytes por seguridad si fuera necesario y generamos el hash
     pwd_bytes = password.encode('utf-8')[:72]
     salt = bcrypt.gensalt()
     return bcrypt.hashpw(pwd_bytes, salt).decode('utf-8')
+
+# 👈 [NUEVO 1]: Función para verificar la contraseña al iniciar sesión
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Compara la contraseña ingresada con el hash de la base de datos"""
+    pwd_bytes = plain_password.encode('utf-8')[:72]
+    hash_bytes = hashed_password.encode('utf-8')
+    return bcrypt.checkpw(pwd_bytes, hash_bytes)
+
 
 # 2. DEFINIR LA TABLA DEL CATÁLOGO DE LICORES
 class Licor(Base):
@@ -75,6 +82,7 @@ def inicio():
     return {"status": "ok", "mensaje": "API de Licores funcionando en Windows"}
 
 # NUEVO: Ruta para registrar usuarios con contraseña encriptada
+
 @app.post("/registro", status_code=201)
 def registrar_usuario(usuario: UsuarioCreate, db: Session = Depends(get_db)):
     # 1. Verificamos si el correo ya existe en Supabase
@@ -94,6 +102,26 @@ def registrar_usuario(usuario: UsuarioCreate, db: Session = Depends(get_db)):
     db.refresh(nuevo_usuario)
     
     return {"mensaje": "Usuario registrado exitosamente", "id": nuevo_usuario.id, "email": nuevo_usuario.email}
+
+# 👈 [NUEVO 2]: Ruta para Iniciar Sesión (Login)
+@app.post("/login")
+def login(usuario: UsuarioCreate, db: Session = Depends(get_db)):
+    # 1. Buscar usuario por correo
+    db_usuario = db.query(Usuario).filter(Usuario.email == usuario.email).first()
+    
+    # 2. Validar que exista y que la contraseña sea correcta usando verify_password
+    if not db_usuario or not verify_password(usuario.password, db_usuario.hashed_password):
+        raise HTTPException(status_code=401, detail="Correo o contraseña incorrectos")
+    
+    # 3. Retornar los datos del usuario si coincide la clave
+    return {
+        "mensaje": "Inicio de sesión exitoso",
+        "usuario": {
+            "id": db_usuario.id,
+            "email": db_usuario.email,
+            "is_admin": db_usuario.is_admin
+        }
+    }
 
 # Ruta para ver todas las botellas registradas
 @app.get("/licores")
