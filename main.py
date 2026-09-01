@@ -1,4 +1,11 @@
+#CONFUGURACION DE LIBRERIA PARA PROTECCION DE ENDPOINTS
 
+from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+import jwt
+import os
+
+#CONFIGURACION DE TOKEN
 
 from datetime import datetime, timedelta, timezone
 import jwt
@@ -106,6 +113,32 @@ def get_db():
     finally:
         db.close()
 
+# Habilita el esquema de seguridad para Swagger UI (Botón Authorize)
+security = HTTPBearer()
+
+def obtener_usuario_actual(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    token = credentials.credentials
+    secret_key = os.getenv("SECRET_KEY")
+    algorithm = os.getenv("ALGORITHM", "HS256")
+
+    try:
+        # Decodifica y verifica la firma del token enviado
+        payload = jwt.decode(token, secret_key, algorithms=[algorithm])
+        return payload  # Retorna la información contenida dentro del token
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="El token ha expirado",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    except jwt.PyJWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token inválido",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+
 # ==========================================
 # 5. ENDPOINTS DE LA API
 # ==========================================
@@ -149,7 +182,10 @@ def login(usuario: UsuarioCreate, db: Session = Depends(get_db)):
 
 
 @app.get("/licores")
-def obtener_licores(db: Session = Depends(get_db)):
+def obtener_licores(
+    db: Session = Depends(get_db),
+    usuario: dict = Depends(obtener_usuario_actual)
+):
     return db.query(Licor).all()
 
 @app.post("/licores")
