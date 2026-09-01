@@ -1,50 +1,81 @@
-from fastapi import FastAPI, Depends, HTTPException
+
+
+from datetime import datetime, timedelta, timezone
+import jwt
+
+import os
+from dotenv import load_dotenv
+
+# Carga las variables desde el archivo .env en la memoria
+load_dotenv()
+
+from fastapi import FastAPI, Depends, HTTPException, File, UploadFile
 from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
-
-# NUEVAS IMPORTACIONES DE SEGURIDAD
-import bcrypt
 from pydantic import BaseModel
+import bcrypt
+import cloudinary
+import cloudinary.uploader
 
-# 0. Conexion a SUPABASE
-DATABASE_URL = "postgresql://postgres.czbipazdslmmfenkxzqg:Laleyenda1*@aws-0-us-west-2.pooler.supabase.com:6543/postgres"
+# ==========================================
+# 0. CONFIGURACIÓN Y VARIABLES DE ENTORNO
+# ==========================================
+# Carga de variables de entorno con valores por defecto seguros
+DATABASE_URL = os.getenv("DATABASE_URL")
+SECRET_KEY = os.getenv("SECRET_KEY")
+ALGORITHM = os.getenv("ALGORITHM", "HS256")
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
+
+# Configuración de la base de datos Supabase
 engine = create_engine(DATABASE_URL) 
-              
-# 1. Configurar la Base de Datos (SQLAlchemy creará este archivo automáticamente)
-
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# NUEVO: Configuración del encriptador de contraseñas
+# Configuración de Cloudinary leyendo desde .env (o valores de respaldo)
+cloudinary.config( 
+  cloud_name = os.getenv("CLOUDINARY_CLOUD_NAME", "vojppavk"),
+  api_key = os.getenv("CLOUDINARY_API_KEY", "697918439339214"), 
+  api_secret = os.getenv("CLOUDINARY_API_SECRET", "r9G3lWXp-1BqZD2MBzmiTltFP20"),
+  secure = True
+)
 
+# ==========================================
+# 1. FUNCIONES AUXILIARES DE SEGURIDAD
+# ==========================================
 def hash_password(password: str) -> str:
     """Encripta la contraseña usando bcrypt de forma nativa"""
-    # Acortamos a 72 bytes por seguridad si fuera necesario y generamos el hash
     pwd_bytes = password.encode('utf-8')[:72]
     salt = bcrypt.gensalt()
     return bcrypt.hashpw(pwd_bytes, salt).decode('utf-8')
 
-# 👈 [NUEVO 1]: Función para verificar la contraseña al iniciar sesión
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Compara la contraseña ingresada con el hash de la base de datos"""
     pwd_bytes = plain_password.encode('utf-8')[:72]
     hash_bytes = hashed_password.encode('utf-8')
     return bcrypt.checkpw(pwd_bytes, hash_bytes)
 
+def create_access_token(data: dict):
+    """Genera un token JWT firmado con un tiempo de expiración"""
+    to_encode = data.copy()
+    expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
 
-# 2. DEFINIR LA TABLA DEL CATÁLOGO DE LICORES
+
+# ==========================================
+# 2. MODELOS DE BASE DE DATOS (SQLAlchemy)
+# ==========================================
 class Licor(Base):
     __tablename__ = "licores"
 
     id = Column(Integer, primary_key=True, index=True)
     nombre = Column(String)
-    categoria = Column(String)  # Vino, Whisky, Cerveza, Rum, Tequila
+    categoria = Column(String)
     precio = Column(Float)
     stock = Column(Integer)
-    imagen_url = Column(String) # Guardará la ruta de la foto JPG
+    imagen_url = Column(String)
 
-
-# NUEVO: DEFINIR LA TABLA DE USUARIOS EN LA BASE DE DATOS
 class Usuario(Base):
     __tablename__ = "usuarios"
 
@@ -53,21 +84,21 @@ class Usuario(Base):
     hashed_password = Column(String, nullable=False)
     is_admin = Column(Boolean, default=True)
 
+# Crear tablas automáticamente en la base de datos
+Base.metadata.create_all(bind=engine)
 
-# NUEVO: Esquema Pydantic para validar los datos que el usuario envía al registrarse
+# ==========================================
+# 3. ESQUEMAS DE VALIDACIÓN (Pydantic)
+# ==========================================
 class UsuarioCreate(BaseModel):
     email: str
     password: str
 
-
-# Crear las tablas automáticamente en la base de datos
-Base.metadata.create_all(bind=engine)
-
-# 3. Inicializar la API con FastAPI
-
+# ==========================================
+# 4. INICIALIZACIÓN DE FASTAPI Y DEPENDENCIAS
+# ==========================================
 app = FastAPI(title="Liquor Store API - Módulo Catálogo")
 
-# Función para abrir y cerrar la conexión a la base de datos de forma limpia
 def get_db():
     db = SessionLocal()
     try:
@@ -75,60 +106,52 @@ def get_db():
     finally:
         db.close()
 
-# --- RUTAS DE LA API (ENDPOINTS) ---
+# ==========================================
+# 5. ENDPOINTS DE LA API
+# ==========================================
 
 @app.get("/")
 def inicio():
     return {"status": "ok", "mensaje": "API de Licores funcionando en Windows"}
 
-# NUEVO: Ruta para registrar usuarios con contraseña encriptada
-
 @app.post("/registro", status_code=201)
 def registrar_usuario(usuario: UsuarioCreate, db: Session = Depends(get_db)):
-    # 1. Verificamos si el correo ya existe en Supabase
     usuario_existente = db.query(Usuario).filter(Usuario.email == usuario.email).first()
     if usuario_existente:
         raise HTTPException(status_code=400, detail="El correo ya está registrado")
     
-    # 2. Encriptamos la contraseña recibida
     password_encriptada = hash_password(usuario.password)
-    
-    # 3. Creamos el objeto del usuario con el hash seguro
     nuevo_usuario = Usuario(email=usuario.email, hashed_password=password_encriptada)
     
-    # 4. Guardamos en la base de datos
     db.add(nuevo_usuario)
     db.commit()
     db.refresh(nuevo_usuario)
     
     return {"mensaje": "Usuario registrado exitosamente", "id": nuevo_usuario.id, "email": nuevo_usuario.email}
 
-# 👈 [NUEVO 2]: Ruta para Iniciar Sesión (Login)
 @app.post("/login")
 def login(usuario: UsuarioCreate, db: Session = Depends(get_db)):
-    # 1. Buscar usuario por correo
     db_usuario = db.query(Usuario).filter(Usuario.email == usuario.email).first()
     
-    # 2. Validar que exista y que la contraseña sea correcta usando verify_password
     if not db_usuario or not verify_password(usuario.password, db_usuario.hashed_password):
         raise HTTPException(status_code=401, detail="Correo o contraseña incorrectos")
     
-    # 3. Retornar los datos del usuario si coincide la clave
+    # 👈 AQUÍ GENERAMOS EL TOKEN REAL:
+    access_token = create_access_token(
+        data={"sub": db_usuario.email, "user_id": db_usuario.id, "is_admin": db_usuario.is_admin}
+    )
+    
     return {
-        "mensaje": "Inicio de sesión exitoso",
-        "usuario": {
-            "id": db_usuario.id,
-            "email": db_usuario.email,
-            "is_admin": db_usuario.is_admin
-        }
+        "access_token": access_token,
+        "token_type": "bearer",
+        "mensaje": "Inicio de sesión exitoso"
     }
 
-# Ruta para ver todas las botellas registradas
+
 @app.get("/licores")
 def obtener_licores(db: Session = Depends(get_db)):
     return db.query(Licor).all()
 
-# Ruta para agregar una botella nueva
 @app.post("/licores")
 def crear_licor(
     nombre: str, 
@@ -150,22 +173,6 @@ def crear_licor(
     db.refresh(nuevo_licor)
     return {"mensaje": "Licor guardado en la base de datos con éxito", "producto": nuevo_licor}
 
-@app.delete("/licores/{licor_id}")
-def eliminar_licor(licor_id: int, db: Session = Depends(get_db)):
-    # Buscamos el licor por su ID
-    licor = db.query(Licor).filter(Licor.id == licor_id).first()
-    
-    # Si no existe, enviamos un error 404
-    if not licor:
-        raise HTTPException(status_code=404, detail="Licor no encontrado")
-    
-    # Lo eliminamos de la base de datos
-    db.delete(licor)
-    db.commit()
-    
-    return {"mensaje": f"Licor con ID {licor_id} eliminado con éxito"}
-
-# Módulo para Editar/Actualizar Licor
 @app.put("/licores/{licor_id}")
 def actualizar_licor(
     licor_id: int, 
@@ -174,64 +181,51 @@ def actualizar_licor(
     precio: float,
     stock: int,
     imagen_url: str = None,
-    imagen_url_2: str = None,
     db: Session = Depends(get_db)
 ):
-    # 1. Buscamos el licor por su ID
     licor = db.query(Licor).filter(Licor.id == licor_id).first()
     
-    # 2. Si no existe, lanza error 404
     if not licor:
         raise HTTPException(status_code=404, detail="Licor no encontrado")
     
-    # 3. Asignamos los nuevos valores
     licor.nombre = nombre
     licor.categoria = categoria
     licor.precio = precio
     licor.stock = stock
     licor.imagen_url = imagen_url
     
-    # 4. Guardamos los cambios
     db.commit()
     db.refresh(licor)
     
     return {"mensaje": "Licor actualizado con éxito", "licor": licor} 
 
-import cloudinary
-import cloudinary.uploader
-from fastapi import File, UploadFile
+@app.delete("/licores/{licor_id}")
+def eliminar_licor(licor_id: int, db: Session = Depends(get_db)):
+    licor = db.query(Licor).filter(Licor.id == licor_id).first()
+    
+    if not licor:
+        raise HTTPException(status_code=404, detail="Licor no encontrado")
+    
+    db.delete(licor)
+    db.commit()
+    
+    return {"mensaje": f"Licor con ID {licor_id} eliminado con éxito"}
 
-# 1. Configuración de tu cuenta en la nube
-cloudinary.config( 
-  cloud_name = "vojppavk",
-  api_key = "697918439339214", 
-  api_secret = "r9G3lWXp-1BqZD2MBzmiTltFP20",
-  secure = True
-)
-
-# 2. Ruta para procesar y subir la foto
 @app.post("/subir-imagen/")
 def subir_imagen(file: UploadFile = File(...)):
     try:
-        # 1. Aseguramos que el archivo se lea desde el principio
         file.file.seek(0)
-        
-        # 2. Subimos el archivo a Cloudinary
         resultado = cloudinary.uploader.upload(
             file.file,
-            folder="licores"  # Opcional: crea una carpeta en Cloudinary
+            folder="licores"
         )
-        
-        # 3. Retornamos la URL segura
         return {
             "mensaje": "Imagen subida con éxito",
             "url": resultado.get("secure_url")
         }
     except Exception as e:
-        # Si algo falla, devolverá el error exacto en lugar de congelarse
         raise HTTPException(status_code=500, detail=f"Error al subir imagen: {str(e)}")
 
 @app.get("/dondestoy")
 def donde_estoy():
-    import os
     return {"ruta_archivo": os.path.abspath(__file__)}
