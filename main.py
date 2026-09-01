@@ -252,7 +252,7 @@ usuario_actual: dict = Depends(obtener_usuario_actual)
     return {"mensaje": f"Licor con ID {licor_id} eliminado con éxito"}
 
 @app.post("/subir-imagen/")
-def subir_imagen(file: UploadFile = File(...)
+def subir_imagen(file: UploadFile = File(...),
 usuario_actual: dict = Depends(obtener_usuario_actual)
 ):
     try:
