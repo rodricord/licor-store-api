@@ -238,7 +238,7 @@ def actualizar_licor(
     return {"mensaje": "Licor actualizado con éxito", "licor": licor} 
 
 @app.delete("/licores/{licor_id}")
-def eliminar_licor(licor_id: int, db: Session = Depends(get_db)
+def eliminar_licor(licor_id: int, db: Session = Depends(get_db),
 usuario_actual: dict = Depends(obtener_usuario_actual)
 ):
     licor = db.query(Licor).filter(Licor.id == licor_id).first()
