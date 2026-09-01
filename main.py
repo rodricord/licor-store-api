@@ -196,6 +196,7 @@ def crear_licor(
     stock: int, 
     imagen_url: str = "", 
     db: Session = Depends(get_db)
+    usuario_actual: dict = Depends(obtener_usuario_actual)
 ):
     nuevo_licor = Licor(
         nombre=nombre, 
@@ -218,6 +219,7 @@ def actualizar_licor(
     stock: int,
     imagen_url: str = None,
     db: Session = Depends(get_db)
+    usuario_actual: dict = Depends(obtener_usuario_actual)
 ):
     licor = db.query(Licor).filter(Licor.id == licor_id).first()
     
@@ -236,7 +238,9 @@ def actualizar_licor(
     return {"mensaje": "Licor actualizado con éxito", "licor": licor} 
 
 @app.delete("/licores/{licor_id}")
-def eliminar_licor(licor_id: int, db: Session = Depends(get_db)):
+def eliminar_licor(licor_id: int, db: Session = Depends(get_db)
+usuario_actual: dict = Depends(obtener_usuario_actual)
+):
     licor = db.query(Licor).filter(Licor.id == licor_id).first()
     
     if not licor:
@@ -248,7 +252,9 @@ def eliminar_licor(licor_id: int, db: Session = Depends(get_db)):
     return {"mensaje": f"Licor con ID {licor_id} eliminado con éxito"}
 
 @app.post("/subir-imagen/")
-def subir_imagen(file: UploadFile = File(...)):
+def subir_imagen(file: UploadFile = File(...)
+usuario_actual: dict = Depends(obtener_usuario_actual)
+):
     try:
         file.file.seek(0)
         resultado = cloudinary.uploader.upload(
