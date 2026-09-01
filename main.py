@@ -218,7 +218,7 @@ def actualizar_licor(
     precio: float,
     stock: int,
     imagen_url: str = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
     usuario_actual: dict = Depends(obtener_usuario_actual)
 ):
     licor = db.query(Licor).filter(Licor.id == licor_id).first()
