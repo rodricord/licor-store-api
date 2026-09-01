@@ -138,6 +138,21 @@ def obtener_usuario_actual(credentials: HTTPAuthorizationCredentials = Depends(s
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+from fastapi import FastAPI, Depends, HTTPException, File, UploadFile
+from fastapi.middleware.cors import CORSMiddleware  # 1. Importas el middleware
+
+app = FastAPI()
+
+# 2. Configuras CORS justo después de app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],         # Acepta cualquier origen (local o producción)
+    allow_credentials=True,
+    allow_methods=["*"],         # Permite GET, POST, PUT, DELETE, etc.
+    allow_headers=["*"],         # Permite el envío de tokens JWT
+)
+
+
 
 # ==========================================
 # 5. ENDPOINTS DE LA API
