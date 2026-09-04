@@ -1,44 +1,35 @@
-#CONFUGURACION DE LIBRERIA PARA PROTECCION DE ENDPOINTS
-
-from fastapi import FastAPI, Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-import jwt
 import os
-
-#CONFIGURACION DE TOKEN
-
 from datetime import datetime, timedelta, timezone
-import jwt
-
-import os
 from dotenv import load_dotenv
 
-# Carga las variables desde el archivo .env en la memoria
+# Carga de variables de entorno
 load_dotenv()
 
-from fastapi import FastAPI, Depends, HTTPException, File, UploadFile
+from fastapi import FastAPI, Depends, HTTPException, status, File, UploadFile
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
 from pydantic import BaseModel
 import bcrypt
+import jwt
 import cloudinary
 import cloudinary.uploader
 
 # ==========================================
 # 0. CONFIGURACIÓN Y VARIABLES DE ENTORNO
 # ==========================================
-# Carga de variables de entorno con valores por defecto seguros
 DATABASE_URL = os.getenv("DATABASE_URL")
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
 
-# Configuración de la base de datos Supabase
+# Base de datos (Supabase)
 engine = create_engine(DATABASE_URL) 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# Configuración de Cloudinary leyendo desde .env (o valores de respaldo)
+# Cloudinary
 cloudinary.config( 
   cloud_name = os.getenv("CLOUDINARY_CLOUD_NAME", "vojppavk"),
   api_key = os.getenv("CLOUDINARY_API_KEY", "697918439339214"), 
@@ -50,25 +41,20 @@ cloudinary.config(
 # 1. FUNCIONES AUXILIARES DE SEGURIDAD
 # ==========================================
 def hash_password(password: str) -> str:
-    """Encripta la contraseña usando bcrypt de forma nativa"""
     pwd_bytes = password.encode('utf-8')[:72]
     salt = bcrypt.gensalt()
     return bcrypt.hashpw(pwd_bytes, salt).decode('utf-8')
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Compara la contraseña ingresada con el hash de la base de datos"""
     pwd_bytes = plain_password.encode('utf-8')[:72]
     hash_bytes = hashed_password.encode('utf-8')
     return bcrypt.checkpw(pwd_bytes, hash_bytes)
 
 def create_access_token(data: dict):
-    """Genera un token JWT firmado con un tiempo de expiración"""
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
-
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 # ==========================================
 # 2. MODELOS DE BASE DE DATOS (SQLAlchemy)
@@ -91,7 +77,6 @@ class Usuario(Base):
     hashed_password = Column(String, nullable=False)
     is_admin = Column(Boolean, default=True)
 
-# Crear tablas automáticamente en la base de datos
 Base.metadata.create_all(bind=engine)
 
 # ==========================================
@@ -102,9 +87,18 @@ class UsuarioCreate(BaseModel):
     password: str
 
 # ==========================================
-# 4. INICIALIZACIÓN DE FASTAPI Y DEPENDENCIAS
+# 4. INICIALIZACIÓN DE FASTAPI, CORS Y SEGURIDAD
 # ==========================================
 app = FastAPI(title="Liquor Store API - Módulo Catálogo")
+
+# Configuración de CORS única
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 def get_db():
     db = SessionLocal()
@@ -113,18 +107,13 @@ def get_db():
     finally:
         db.close()
 
-# Habilita el esquema de seguridad para Swagger UI (Botón Authorize)
 security = HTTPBearer()
 
 def obtener_usuario_actual(credentials: HTTPAuthorizationCredentials = Depends(security)):
     token = credentials.credentials
-    secret_key = os.getenv("SECRET_KEY")
-    algorithm = os.getenv("ALGORITHM", "HS256")
-
     try:
-        # Decodifica y verifica la firma del token enviado
-        payload = jwt.decode(token, secret_key, algorithms=[algorithm])
-        return payload  # Retorna la información contenida dentro del token
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        return payload
     except jwt.ExpiredSignatureError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -138,29 +127,13 @@ def obtener_usuario_actual(credentials: HTTPAuthorizationCredentials = Depends(s
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-from fastapi import FastAPI, Depends, HTTPException, File, UploadFile
-from fastapi.middleware.cors import CORSMiddleware  # 1. Importas el middleware
-
-app = FastAPI()
-
-# 2. Configuras CORS justo después de app = FastAPI()
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],         # Acepta cualquier origen (local o producción)
-    allow_credentials=True,
-    allow_methods=["*"],         # Permite GET, POST, PUT, DELETE, etc.
-    allow_headers=["*"],         # Permite el envío de tokens JWT
-)
-
-
-
 # ==========================================
 # 5. ENDPOINTS DE LA API
 # ==========================================
 
 @app.get("/")
 def inicio():
-    return {"status": "ok", "mensaje": "API de Licores funcionando en Windows"}
+    return {"status": "ok", "mensaje": "API de Licores funcionando en producción"}
 
 @app.post("/registro", status_code=201)
 def registrar_usuario(usuario: UsuarioCreate, db: Session = Depends(get_db)):
@@ -184,7 +157,6 @@ def login(usuario: UsuarioCreate, db: Session = Depends(get_db)):
     if not db_usuario or not verify_password(usuario.password, db_usuario.hashed_password):
         raise HTTPException(status_code=401, detail="Correo o contraseña incorrectos")
     
-    # 👈 AQUÍ GENERAMOS EL TOKEN REAL:
     access_token = create_access_token(
         data={"sub": db_usuario.email, "user_id": db_usuario.id, "is_admin": db_usuario.is_admin}
     )
@@ -195,12 +167,10 @@ def login(usuario: UsuarioCreate, db: Session = Depends(get_db)):
         "mensaje": "Inicio de sesión exitoso"
     }
 
+# --- RUTAS DE LICORES ---
 
 @app.get("/licores")
-def obtener_licores(
-    db: Session = Depends(get_db),
-    usuario: dict = Depends(obtener_usuario_actual)
-):
+def obtener_licores(db: Session = Depends(get_db)):  # <--- PÚBLICO (Sin token)
     return db.query(Licor).all()
 
 @app.post("/licores")
@@ -211,7 +181,7 @@ def crear_licor(
     stock: int, 
     imagen_url: str = "", 
     db: Session = Depends(get_db),
-    usuario_actual: dict = Depends(obtener_usuario_actual)
+    usuario_actual: dict = Depends(obtener_usuario_actual)  # <--- PROTEGIDO
 ):
     nuevo_licor = Licor(
         nombre=nombre, 
@@ -234,7 +204,7 @@ def actualizar_licor(
     stock: int,
     imagen_url: str = None,
     db: Session = Depends(get_db),
-    usuario_actual: dict = Depends(obtener_usuario_actual)
+    usuario_actual: dict = Depends(obtener_usuario_actual)  # <--- PROTEGIDO
 ):
     licor = db.query(Licor).filter(Licor.id == licor_id).first()
     
@@ -253,8 +223,10 @@ def actualizar_licor(
     return {"mensaje": "Licor actualizado con éxito", "licor": licor} 
 
 @app.delete("/licores/{licor_id}")
-def eliminar_licor(licor_id: int, db: Session = Depends(get_db),
-usuario_actual: dict = Depends(obtener_usuario_actual)
+def eliminar_licor(
+    licor_id: int, 
+    db: Session = Depends(get_db),
+    usuario_actual: dict = Depends(obtener_usuario_actual)  # <--- PROTEGIDO
 ):
     licor = db.query(Licor).filter(Licor.id == licor_id).first()
     
@@ -267,8 +239,9 @@ usuario_actual: dict = Depends(obtener_usuario_actual)
     return {"mensaje": f"Licor con ID {licor_id} eliminado con éxito"}
 
 @app.post("/subir-imagen/")
-def subir_imagen(file: UploadFile = File(...),
-usuario_actual: dict = Depends(obtener_usuario_actual)
+def subir_imagen(
+    file: UploadFile = File(...),
+    usuario_actual: dict = Depends(obtener_usuario_actual)  # <--- PROTEGIDO
 ):
     try:
         file.file.seek(0)
