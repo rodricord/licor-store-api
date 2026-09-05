@@ -66,7 +66,7 @@ class Licor(Base):
     nombre = Column(String)
     categoria = Column(String)
     precio = Column(Float)
-    stock = Column(Integer)
+   # stock = Column(Integer)
     imagen_url = Column(String)
 
 class Usuario(Base):
@@ -178,7 +178,7 @@ def crear_licor(
     nombre: str, 
     categoria: str, 
     precio: float, 
-    stock: int, 
+   # stock: int, 
     imagen_url: str = "", 
     db: Session = Depends(get_db),
     usuario_actual: dict = Depends(obtener_usuario_actual)  # <--- PROTEGIDO
@@ -201,7 +201,7 @@ def actualizar_licor(
     nombre: str,
     categoria: str,
     precio: float,
-    stock: int,
+  #  stock: int,
     imagen_url: str = None,
     db: Session = Depends(get_db),
     usuario_actual: dict = Depends(obtener_usuario_actual)  # <--- PROTEGIDO
