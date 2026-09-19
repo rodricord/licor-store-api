@@ -1,5 +1,5 @@
 // URL de tu Backend alojado en Render (Asegúrate de cambiarla por tu dominio real)
-const API_URL = "https://tu-backend-likorkeller.onrender.com";
+const API_URL = "https://licor-store-api.onrender.com";
 
 // Referencias a las modales
 const modalLogin = document.getElementById('modal-login');
