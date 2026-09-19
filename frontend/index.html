@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Likörkeller | Reserva de Destilados</title>
+    
+    <!-- Tailwind CSS desde CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Tipografía Google Fonts: Oswald e Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Oswald:wght@500;700&display=swap" rel="stylesheet">
+
+    <!-- Configuración personalizada de Tailwind -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'barrel-dark': '#0c0a09',
+                        'barrel-card': 'rgba(24, 24, 27, 0.85)',
+                        'barrel-border': '#3f3f46',
+                        'caterpillar-gold': '#d97706',
+                        'caterpillar-gold-hover': '#b45309',
+                        'raw-steel': '#a1a1aa'
+                    },
+                    fontFamily: {
+                        'heavy': ['Oswald', 'sans-serif'],
+                        'body': ['Inter', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Fondo Cava & Destilados — Likörkeller */
+        .bg-barrel-texture {
+            background-color: #1c1917;
+            background-image: 
+                linear-gradient(to bottom, rgba(12, 10, 9, 0.05), rgba(12, 10, 9, 0.15)),
+                url('https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?q=80&w=1920&auto=format&fit=crop');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            filter: brightness(1.70) contrast(1.10);
+        }
+    </style>
+</head>
+<body class="bg-barrel-texture text-gray-100 font-body antialiased min-h-screen flex flex-col selection:bg-caterpillar-gold selection:text-black">
+
+    <!-- NAV BAR - CLIENTE FINAL -->
+    <nav class="bg-stone-950/90 border-b border-barrel-border sticky top-0 z-40 backdrop-blur-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+            <!-- LOGO -->
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 bg-caterpillar-gold flex items-center justify-center font-heavy text-black text-2xl font-bold tracking-wider rounded-sm shadow-lg shadow-caterpillar-gold/20">
+                    LIK
+                </div>
+                <div>
+                    <span class="font-heavy text-2xl tracking-wider text-white uppercase block leading-none">Likörkeller</span>
+                    <span class="text-[10px] text-raw-steel uppercase tracking-widest font-semibold">Legendary Reserve</span>
+                </div>
+            </div>
+
+            <!-- CONTROLES Y ACCESOS DE AUTENTICACIÓN / CARRITO -->
+            <div class="flex items-center gap-3">
+                
+                <!-- BOTÓN INICIAR SESIÓN -->
+                <button id="btn-open-login" class="border border-barrel-border hover:border-caterpillar-gold text-raw-steel hover:text-white font-heavy text-xs uppercase px-3.5 py-2 rounded-sm transition-all duration-200">
+                    Iniciar Sesión
+                </button>
+
+                <!-- BOTÓN REGISTRARSE -->
+                <button id="btn-open-register" class="bg-stone-800 hover:bg-stone-700 text-caterpillar-gold border border-caterpillar-gold/30 hover:border-caterpillar-gold font-heavy text-xs uppercase px-3.5 py-2 rounded-sm transition-all duration-200">
+                    Registrarse
+                </button>
+
+                <!-- DIVISOR VERTICAL -->
+                <div class="h-6 w-[1px] bg-barrel-border/60 mx-1 hidden sm:block"></div>
+
+                <!-- BOTÓN CARRETILLA CON BOTELLA REFINADA -->
+                <button id="btn-cart" class="bg-caterpillar-gold hover:bg-caterpillar-gold-hover text-black font-heavy tracking-wider uppercase text-sm px-4 py-2.5 rounded-sm transition-all duration-200 flex items-center gap-2.5 shadow-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <!-- Carretilla de compras -->
+                        <circle cx="9" cy="21" r="1"></circle>
+                        <circle cx="20" cy="21" r="1"></circle>
+                        <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+                        <!-- Botella bien definida dentro del carrito -->
+                        <path d="M12 5v-2h2v2l1 2v4h-4V7l1-2z" fill="#0c0a09" stroke="currentColor" stroke-width="1.2"></path>
+                    </svg>
+                    <span class="hidden sm:inline">Añadir</span>
+                    <span id="cart-count" class="bg-black text-caterpillar-gold text-xs px-2 py-0.5 rounded-full font-bold">0</span>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- HEADER / HERO -->
+    <header class="relative border-b border-barrel-border bg-stone-950/70 py-12 px-4 md:py-16 backdrop-blur-sm">
+        <div class="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-8">
+            
+            <div class="text-center md:text-left space-y-4 max-w-xl">
+                <span class="inline-block bg-caterpillar-gold/20 text-caterpillar-gold border border-caterpillar-gold/40 text-xs uppercase font-heavy tracking-widest px-3 py-1 rounded-sm">
+                    DESTACADO DE LA CAVA
+                </span>
+                
+                <h1 class="font-heavy text-4xl sm:text-6xl text-white uppercase tracking-tight drop-shadow-md leading-none">
+                    Don Julio 1942 <br>
+                    <span class="text-caterpillar-gold text-2xl sm:text-4xl">Añejo Reserva</span>
+                </h1>
+                
+                <p class="text-raw-steel text-sm sm:text-base font-light leading-relaxed">
+                    Un icono de la destilación artesanal. Añejado en barricas de roble blanco americano con notas de caramelo rico, vainilla y chocolate.
+                </p>
+
+                <div class="pt-2 flex flex-col sm:flex-row items-center justify-center md:justify-start gap-4">
+                    <a href="#liquor-grid" class="w-full sm:w-auto bg-caterpillar-gold hover:bg-caterpillar-gold-hover text-black font-heavy text-sm uppercase px-6 py-3 rounded-sm transition-all shadow-lg flex items-center justify-center gap-2">
+                        <span>Ver en Catálogo</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </a>
+                </div>
+            </div>
+
+            <div class="relative flex items-center justify-center w-full md:w-auto">
+                <div class="absolute w-48 h-48 sm:w-64 sm:h-64 bg-caterpillar-gold/20 rounded-full blur-3xl -z-10"></div>
+                
+                <img src="https://res.cloudinary.com/vojppavk/image/upload/v1789845284/donjulio1942.png" 
+                     alt="Tequila Don Julio 1942" 
+                     class="h-64 sm:h-80 object-contain drop-shadow-[0_20px_25px_rgba(0,0,0,0.9)] hover:scale-105 transition-transform duration-300">
+            </div>
+
+        </div>
+    </header>
+
+    <!-- MAIN CATALOGO -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 flex-1 w-full">
+        <!-- BARRA DE FILTROS Y BÚSQUEDA -->
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 pb-4 border-b border-barrel-border bg-stone-950/40 p-4 rounded-sm backdrop-blur-sm">
+            <div>
+                <h2 class="font-heavy text-2xl text-white uppercase tracking-wide">Catálogo Disponible</h2>
+                <p id="total-items" class="text-xs text-raw-steel">Consultando existencias...</p>
+            </div>
+            
+            <!-- BUSCADOR -->
+            <div class="w-full sm:w-72">
+                <input type="text" id="input-search" placeholder="Buscar licor o categoría..." 
+                    class="w-full bg-stone-900/90 border border-barrel-border text-white text-sm px-4 py-2.5 rounded-sm focus:outline-none focus:border-caterpillar-gold transition-colors">
+            </div>
+        </div>
+
+        <!-- GRILLA DE PRODUCTOS -->
+        <div id="liquor-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <!-- JavaScript renderizará las tarjetas aquí -->
+        </div>
+
+        <!-- ESTADO DE CARGA -->
+        <div id="loading-state" class="text-center py-20 bg-stone-950/50 rounded-sm border border-barrel-border/50">
+            <div class="inline-block animate-spin w-8 h-8 border-4 border-caterpillar-gold border-t-transparent rounded-full mb-4"></div>
+            <p class="text-raw-steel font-heavy uppercase tracking-widest text-sm">Conectando con la cava en Render...</p>
+        </div>
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="bg-stone-950 border-t border-barrel-border py-8 mt-auto">
+        <div class="max-w-7xl mx-auto px-4 text-center">
+            <p class="text-xs text-raw-steel uppercase tracking-widest font-heavy">Likörkeller &copy; 2026 — Derechos reservados</p>
+        </div>
+    </footer>
+
+    <!-- MODAL CARRETILLA DE COMPRAS -->
+    <div id="modal-cart" class="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-stone-900 border border-barrel-border w-full max-w-lg rounded-sm shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+            <!-- HEADER MODAL -->
+            <div class="bg-stone-950 px-6 py-4 border-b border-barrel-border flex justify-between items-center">
+                <h3 class="font-heavy text-xl text-white uppercase tracking-wider flex items-center gap-2">
+                    <span>🛒 Tu Carretilla</span>
+                </h3>
+                <button id="btn-close-cart" class="text-raw-steel hover:text-white text-xl font-bold">&times;</button>
+            </div>
+
+            <!-- LISTA DE PRODUCTOS AGREGADOS -->
+            <div id="cart-items" class="p-6 overflow-y-auto space-y-4 flex-1">
+                <!-- JavaScript inyectará los elementos agregados aquí -->
+            </div>
+
+            <!-- FOOTER MODAL (TOTAL Y CHECKOUT) -->
+            <div class="bg-stone-950 px-6 py-4 border-t border-barrel-border space-y-3">
+                <div class="flex justify-between items-center">
+                    <span class="font-heavy text-raw-steel uppercase text-sm">Total a pagar:</span>
+                    <span id="cart-total" class="font-heavy text-2xl text-caterpillar-gold">$0.00</span>
+                </div>
+                <button id="btn-checkout" class="w-full bg-caterpillar-gold hover:bg-caterpillar-gold-hover text-black font-heavy uppercase text-sm py-3 rounded-sm transition-colors">
+                    Finalizar Pedido
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL INICIAR SESIÓN -->
+    <div id="modal-login" class="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-stone-900 border border-barrel-border w-full max-w-md rounded-sm shadow-2xl overflow-hidden flex flex-col">
+            <div class="bg-stone-950 px-6 py-4 border-b border-barrel-border flex justify-between items-center">
+                <h3 class="font-heavy text-xl text-white uppercase tracking-wider">Acceso a la Cava</h3>
+                <button id="btn-close-login" class="text-raw-steel hover:text-white text-xl font-bold">&times;</button>
+            </div>
+            <form id="form-login" class="p-6 space-y-4">
+                <div>
+                    <label class="block text-xs font-heavy uppercase text-raw-steel mb-1">Correo Electrónico</label>
+                    <input type="email" id="login-email" required placeholder="socio@likorkeller.com" class="w-full bg-stone-950 border border-barrel-border text-white text-sm px-3 py-2 rounded-sm focus:outline-none focus:border-caterpillar-gold">
+                </div>
+                <div>
+                    <label class="block text-xs font-heavy uppercase text-raw-steel mb-1">Contraseña</label>
+                    <input type="password" id="login-password" required placeholder="••••••••" class="w-full bg-stone-950 border border-barrel-border text-white text-sm px-3 py-2 rounded-sm focus:outline-none focus:border-caterpillar-gold">
+                </div>
+                <button type="submit" class="w-full bg-caterpillar-gold hover:bg-caterpillar-gold-hover text-black font-heavy uppercase text-sm py-2.5 rounded-sm transition-colors mt-2">
+                    Ingresar
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL REGISTRO -->
+    <div id="modal-register" class="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-stone-900 border border-barrel-border w-full max-w-md rounded-sm shadow-2xl overflow-hidden flex flex-col">
+            <div class="bg-stone-950 px-6 py-4 border-b border-barrel-border flex justify-between items-center">
+                <h3 class="font-heavy text-xl text-white uppercase tracking-wider">Registro de Socio</h3>
+                <button id="btn-close-register" class="text-raw-steel hover:text-white text-xl font-bold">&times;</button>
+            </div>
+            <form id="form-register" class="p-6 space-y-4">
+                <div>
+                    <label class="block text-xs font-heavy uppercase text-raw-steel mb-1">Nombre Completo</label>
+                    <input type="text" id="reg-nombre" required placeholder="Carlos Mendoza" class="w-full bg-stone-950 border border-barrel-border text-white text-sm px-3 py-2 rounded-sm focus:outline-none focus:border-caterpillar-gold">
+                </div>
+                <div>
+                    <label class="block text-xs font-heavy uppercase text-raw-steel mb-1">Correo Electrónico</label>
+                    <input type="email" id="reg-email" required placeholder="socio@likorkeller.com" class="w-full bg-stone-950 border border-barrel-border text-white text-sm px-3 py-2 rounded-sm focus:outline-none focus:border-caterpillar-gold">
+                </div>
+                <div>
+                    <label class="block text-xs font-heavy uppercase text-raw-steel mb-1">Contraseña</label>
+                    <input type="password" id="reg-password" required placeholder="••••••••" class="w-full bg-stone-950 border border-barrel-border text-white text-sm px-3 py-2 rounded-sm focus:outline-none focus:border-caterpillar-gold">
+                </div>
+                <button type="submit" class="w-full bg-caterpillar-gold hover:bg-caterpillar-gold-hover text-black font-heavy uppercase text-sm py-2.5 rounded-sm transition-colors mt-2">
+                    Crear Cuenta
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- SCRIPT LOGICA PRINCIPAL -->
+    <script src="app.js"></script>
+</body>
+</html>
