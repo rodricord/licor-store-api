@@ -144,7 +144,7 @@ def obtener_usuario_actual(credentials: HTTPAuthorizationCredentials = Depends(s
 def inicio():
     return {"status": "ok", "mensaje": "API de Licores funcionando en producción"}
 
-@app.post("/registro", status_code=201)
+@app.post("/api/auth/register", status_code=201)
 def registrar_usuario(usuario: UsuarioCreate, db: Session = Depends(get_db)):
     usuario_existente = db.query(Usuario).filter(Usuario.email == usuario.email).first()
     if usuario_existente:
