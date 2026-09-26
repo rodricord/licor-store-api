@@ -159,7 +159,7 @@ def registrar_usuario(usuario: UsuarioCreate, db: Session = Depends(get_db)):
     
     return {"mensaje": "Usuario registrado exitosamente", "id": nuevo_usuario.id, "email": nuevo_usuario.email}
 
-@app.post("/login")
+@app.post("/api/auth/login")
 def login(usuario: UsuarioCreate, db: Session = Depends(get_db)):
     db_usuario = db.query(Usuario).filter(Usuario.email == usuario.email).first()
     
