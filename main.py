@@ -165,10 +165,11 @@ def registrar_usuario(usuario: UsuarioCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="El correo ya está registrado")
     
     password_encriptada = hash_password(usuario.password)
+    # Forzar el rol a "cliente" por seguridad en el autoregistro público
     nuevo_usuario = Usuario(
         email=usuario.email, 
         hashed_password=password_encriptada,
-        rol=usuario.rol
+        rol="cliente"
     )
     
     db.add(nuevo_usuario)
@@ -241,7 +242,7 @@ def actualizar_licor(
     stock: int,
     imagen_url: str = None,
     db: Session = Depends(get_db),
-    usuario_actual: dict = Depends(requerir_rol(["admin"]))  # <--- EXCLUSIVO ADMIN
+    usuario_actual: dict = Depends(requerir_rol(["admin", "supervisor"]))  # <--- ADMIN Y SUPERVISOR
 ):
     licor = db.query(Licor).filter(Licor.id == licor_id).first()
     
@@ -278,7 +279,7 @@ def eliminar_licor(
 @app.post("/subir-imagen/")
 def subir_imagen(
     file: UploadFile = File(...),
-    usuario_actual: dict = Depends(requerir_rol(["admin", "supervisor"]))  # <--- ACCESO PARA ADMIN Y SUPERVISOR
+    usuario_actual: dict = Depends(requerir_rol(["admin", "supervisor"]))  # <--- ADMIN Y SUPERVISOR
 ):
     try:
         file.file.seek(0)
