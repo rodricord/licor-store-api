@@ -88,6 +88,12 @@ class UsuarioCreate(BaseModel):
     password: str
     rol: str = "cliente"  # Valor predeterminado si no se especifica en el JSON de registro
 
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str
+    rol: str
+    mensaje: str
+
 # ==========================================
 # 4. INICIALIZACIÓN DE FASTAPI, CORS Y SEGURIDAD
 # ==========================================
@@ -183,32 +189,34 @@ def registrar_usuario(usuario: UsuarioCreate, db: Session = Depends(get_db)):
         "rol": nuevo_usuario.rol
     }
 
-@app.post("/api/auth/login")
+@app.post("/api/auth/login", response_model=TokenResponse)
 def login(usuario: UsuarioCreate, db: Session = Depends(get_db)):
     db_usuario = db.query(Usuario).filter(Usuario.email == usuario.email).first()
     
     if not db_usuario or not verify_password(usuario.password, db_usuario.hashed_password):
         raise HTTPException(status_code=401, detail="Correo o contraseña incorrectos")
     
+    rol_usuario = getattr(db_usuario, "rol", "cliente") or "cliente"
+
     access_token = create_access_token(
         data={
             "sub": db_usuario.email, 
             "user_id": db_usuario.id, 
-            "rol": db_usuario.rol  # Incluimos 'rol' en el token JWT
+            "rol": rol_usuario  # Incluimos 'rol' en el token JWT
         }
     )
     
     return {
         "access_token": access_token,
         "token_type": "bearer",
-        "rol": db_usuario.rol,
+        "rol": rol_usuario,
         "mensaje": "Inicio de sesión exitoso"
     }
 
 # --- RUTAS DE LICORES ---
 
 @app.get("/licores")
-def obtener_licores(db: Session = Depends(get_db)):  # <--- PÚBLICO (Cualquier usuario puede ver el catálogo)
+def obtener_licores(db: Session = Depends(get_db)):  # <--- PÚBLICO
     return db.query(Licor).all()
 
 @app.post("/licores")
