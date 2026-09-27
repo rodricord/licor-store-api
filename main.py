@@ -1,5 +1,6 @@
 import os
 from datetime import datetime, timedelta, timezone
+from typing import List
 from dotenv import load_dotenv
 
 # Carga de variables de entorno
@@ -31,10 +32,10 @@ Base = declarative_base()
 
 # Cloudinary
 cloudinary.config( 
-  cloud_name = os.getenv("CLOUDINARY_CLOUD_NAME", "vojppavk"),
-  api_key = os.getenv("CLOUDINARY_API_KEY", "697918439339214"), 
-  api_secret = os.getenv("CLOUDINARY_API_SECRET", "r9G3lWXp-1BqZD2MBzmiTltFP20"),
-  secure = True
+    cloud_name = os.getenv("CLOUDINARY_CLOUD_NAME", "vojppavk"),
+    api_key = os.getenv("CLOUDINARY_API_KEY", "697918439339214"), 
+    api_secret = os.getenv("CLOUDINARY_API_SECRET", "r9G3lWXp-1BqZD2MBzmiTltFP20"),
+    secure = True
 )
 
 # ==========================================
@@ -75,7 +76,7 @@ class Usuario(Base):
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, nullable=False)
     hashed_password = Column(String, nullable=False)
-    is_admin = Column(Boolean, default=True)
+    rol = Column(String, default="cliente", nullable=False)  # Mapeado directamente a la columna 'rol' en Supabase
 
 Base.metadata.create_all(bind=engine)
 
@@ -85,13 +86,14 @@ Base.metadata.create_all(bind=engine)
 class UsuarioCreate(BaseModel):
     email: str
     password: str
+    rol: str = "cliente"  # Valor predeterminado si no se especifica en el JSON de registro
 
 # ==========================================
 # 4. INICIALIZACIÓN DE FASTAPI, CORS Y SEGURIDAD
 # ==========================================
 app = FastAPI(title="Liquor Store API - Módulo Catálogo")
 
-# Configuración de CORS única
+# Configuración de CORS
 origins = [
     "http://127.0.0.1:5500",
     "http://localhost:5500",
@@ -136,6 +138,18 @@ def obtener_usuario_actual(credentials: HTTPAuthorizationCredentials = Depends(s
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+# Middleware / Función helper para verificar roles requeridos
+def requerir_rol(roles_permitidos: List[str]):
+    def rol_checker(usuario_actual: dict = Depends(obtener_usuario_actual)):
+        rol_usuario = usuario_actual.get("rol", "cliente")
+        if rol_usuario not in roles_permitidos:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Acceso denegado: Se requiere uno de los siguientes roles: {', '.join(roles_permitidos)}"
+            )
+        return usuario_actual
+    return rol_checker
+
 # ==========================================
 # 5. ENDPOINTS DE LA API
 # ==========================================
@@ -151,13 +165,22 @@ def registrar_usuario(usuario: UsuarioCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="El correo ya está registrado")
     
     password_encriptada = hash_password(usuario.password)
-    nuevo_usuario = Usuario(email=usuario.email, hashed_password=password_encriptada)
+    nuevo_usuario = Usuario(
+        email=usuario.email, 
+        hashed_password=password_encriptada,
+        rol=usuario.rol
+    )
     
     db.add(nuevo_usuario)
     db.commit()
     db.refresh(nuevo_usuario)
     
-    return {"mensaje": "Usuario registrado exitosamente", "id": nuevo_usuario.id, "email": nuevo_usuario.email}
+    return {
+        "mensaje": "Usuario registrado exitosamente", 
+        "id": nuevo_usuario.id, 
+        "email": nuevo_usuario.email,
+        "rol": nuevo_usuario.rol
+    }
 
 @app.post("/api/auth/login")
 def login(usuario: UsuarioCreate, db: Session = Depends(get_db)):
@@ -167,19 +190,24 @@ def login(usuario: UsuarioCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Correo o contraseña incorrectos")
     
     access_token = create_access_token(
-        data={"sub": db_usuario.email, "user_id": db_usuario.id, "is_admin": db_usuario.is_admin}
+        data={
+            "sub": db_usuario.email, 
+            "user_id": db_usuario.id, 
+            "rol": db_usuario.rol  # Incluimos 'rol' en el token JWT
+        }
     )
     
     return {
         "access_token": access_token,
         "token_type": "bearer",
+        "rol": db_usuario.rol,
         "mensaje": "Inicio de sesión exitoso"
     }
 
 # --- RUTAS DE LICORES ---
 
 @app.get("/licores")
-def obtener_licores(db: Session = Depends(get_db)):  # <--- PÚBLICO (Sin token)
+def obtener_licores(db: Session = Depends(get_db)):  # <--- PÚBLICO (Cualquier usuario puede ver el catálogo)
     return db.query(Licor).all()
 
 @app.post("/licores")
@@ -190,7 +218,7 @@ def crear_licor(
     stock: int, 
     imagen_url: str = "", 
     db: Session = Depends(get_db),
-    usuario_actual: dict = Depends(obtener_usuario_actual)  # <--- PROTEGIDO
+    usuario_actual: dict = Depends(requerir_rol(["admin"]))  # <--- EXCLUSIVO ADMIN
 ):
     nuevo_licor = Licor(
         nombre=nombre, 
@@ -213,7 +241,7 @@ def actualizar_licor(
     stock: int,
     imagen_url: str = None,
     db: Session = Depends(get_db),
-    usuario_actual: dict = Depends(obtener_usuario_actual)  # <--- PROTEGIDO
+    usuario_actual: dict = Depends(requerir_rol(["admin"]))  # <--- EXCLUSIVO ADMIN
 ):
     licor = db.query(Licor).filter(Licor.id == licor_id).first()
     
@@ -235,7 +263,7 @@ def actualizar_licor(
 def eliminar_licor(
     licor_id: int, 
     db: Session = Depends(get_db),
-    usuario_actual: dict = Depends(obtener_usuario_actual)  # <--- PROTEGIDO
+    usuario_actual: dict = Depends(requerir_rol(["admin"]))  # <--- EXCLUSIVO ADMIN
 ):
     licor = db.query(Licor).filter(Licor.id == licor_id).first()
     
@@ -250,7 +278,7 @@ def eliminar_licor(
 @app.post("/subir-imagen/")
 def subir_imagen(
     file: UploadFile = File(...),
-    usuario_actual: dict = Depends(obtener_usuario_actual)  # <--- PROTEGIDO
+    usuario_actual: dict = Depends(requerir_rol(["admin", "supervisor"]))  # <--- ACCESO PARA ADMIN Y SUPERVISOR
 ):
     try:
         file.file.seek(0)
