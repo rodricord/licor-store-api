@@ -192,20 +192,21 @@ def registrar_usuario(usuario: UsuarioCreate, db: Session = Depends(get_db)):
 @app.post("/api/auth/login", response_model=TokenResponse)
 def login(usuario: UsuarioCreate, db: Session = Depends(get_db)):
     db_usuario = db.query(Usuario).filter(Usuario.email == usuario.email).first()
-    
+
     if not db_usuario or not verify_password(usuario.password, db_usuario.hashed_password):
         raise HTTPException(status_code=401, detail="Correo o contraseña incorrectos")
-    
-    rol_usuario = getattr(db_usuario, "rol", "cliente") or "cliente"
+
+    # Leemos el rol real que viene directo desde la base de datos
+    rol_usuario = db_usuario.rol
 
     access_token = create_access_token(
         data={
-            "sub": db_usuario.email, 
-            "user_id": db_usuario.id, 
-            "rol": rol_usuario  # Incluimos 'rol' en el token JWT
+            "sub": db_usuario.email,
+            "user_id": db_usuario.id,
+            "rol": rol_usuario
         }
     )
-    
+
     return {
         "access_token": access_token,
         "token_type": "bearer",
