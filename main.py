@@ -11,7 +11,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 import bcrypt
 import jwt
 import cloudinary
@@ -76,7 +76,7 @@ class Usuario(Base):
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, nullable=False)
     hashed_password = Column(String, nullable=False)
-    rol = Column(String, default="cliente", nullable=False)  # Mapeado directamente a la columna 'rol' en Supabase
+    rol = Column(String, default="cliente", nullable=False)
 
 Base.metadata.create_all(bind=engine)
 
@@ -86,7 +86,11 @@ Base.metadata.create_all(bind=engine)
 class UsuarioCreate(BaseModel):
     email: str
     password: str
-    rol: str = "cliente"  # Valor predeterminado si no se especifica en el JSON de registro
+    rol: str = "cliente"
+
+class UsuarioLogin(BaseModel):
+    email: str
+    password: str
 
 class TokenResponse(BaseModel):
     access_token: str
@@ -171,7 +175,6 @@ def registrar_usuario(usuario: UsuarioCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="El correo ya está registrado")
     
     password_encriptada = hash_password(usuario.password)
-    # Forzar el rol a "cliente" por seguridad en el autoregistro público
     nuevo_usuario = Usuario(
         email=usuario.email, 
         hashed_password=password_encriptada,
@@ -190,13 +193,13 @@ def registrar_usuario(usuario: UsuarioCreate, db: Session = Depends(get_db)):
     }
 
 @app.post("/api/auth/login", response_model=TokenResponse)
-def login(usuario: UsuarioCreate, db: Session = Depends(get_db)):
+def login(usuario: UsuarioLogin, db: Session = Depends(get_db)):
     db_usuario = db.query(Usuario).filter(Usuario.email == usuario.email).first()
 
     if not db_usuario or not verify_password(usuario.password, db_usuario.hashed_password):
         raise HTTPException(status_code=401, detail="Correo o contraseña incorrectos")
 
-    # Leemos el rol real que viene directo desde la base de datos
+    # Leemos el rol real que viene directo desde la base de datos (Supabase)
     rol_usuario = db_usuario.rol
 
     access_token = create_access_token(
@@ -217,7 +220,7 @@ def login(usuario: UsuarioCreate, db: Session = Depends(get_db)):
 # --- RUTAS DE LICORES ---
 
 @app.get("/licores")
-def obtener_licores(db: Session = Depends(get_db)):  # <--- PÚBLICO
+def obtener_licores(db: Session = Depends(get_db)):
     return db.query(Licor).all()
 
 @app.post("/licores")
@@ -228,7 +231,7 @@ def crear_licor(
     stock: int, 
     imagen_url: str = "", 
     db: Session = Depends(get_db),
-    usuario_actual: dict = Depends(requerir_rol(["admin"]))  # <--- EXCLUSIVO ADMIN
+    usuario_actual: dict = Depends(requerir_rol(["admin"]))
 ):
     nuevo_licor = Licor(
         nombre=nombre, 
@@ -251,7 +254,7 @@ def actualizar_licor(
     stock: int,
     imagen_url: str = None,
     db: Session = Depends(get_db),
-    usuario_actual: dict = Depends(requerir_rol(["admin", "supervisor"]))  # <--- ADMIN Y SUPERVISOR
+    usuario_actual: dict = Depends(requerir_rol(["admin", "supervisor"]))
 ):
     licor = db.query(Licor).filter(Licor.id == licor_id).first()
     
@@ -273,7 +276,7 @@ def actualizar_licor(
 def eliminar_licor(
     licor_id: int, 
     db: Session = Depends(get_db),
-    usuario_actual: dict = Depends(requerir_rol(["admin"]))  # <--- EXCLUSIVO ADMIN
+    usuario_actual: dict = Depends(requerir_rol(["admin"]))
 ):
     licor = db.query(Licor).filter(Licor.id == licor_id).first()
     
@@ -288,7 +291,7 @@ def eliminar_licor(
 @app.post("/subir-imagen/")
 def subir_imagen(
     file: UploadFile = File(...),
-    usuario_actual: dict = Depends(requerir_rol(["admin", "supervisor"]))  # <--- ADMIN Y SUPERVISOR
+    usuario_actual: dict = Depends(requerir_rol(["admin", "supervisor"]))
 ):
     try:
         file.file.seek(0)
