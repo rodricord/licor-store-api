@@ -335,9 +335,7 @@ def subir_imagen(
     }
   except Exception as e:
     raise HTTPException(
-        status_code=500 detail=f"Error al subir imagen: {str(e)}"
-    )
-
+    status_code=500, detail=f"Error al subir imagen: {str(e)}"
 
 @app.get("/dondestoy")
 def donde_estoy():
