@@ -30,7 +30,12 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30")
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 
 # Base de datos (Supabase)
-engine = create_engine(DATABASE_URL) 
+if DATABASE_URL and DATABASE_URL.startswith("postgresql://"):
+    db_url = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://", 1)
+else:
+    db_url = DATABASE_URL
+
+engine = create_engine(db_url)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -349,3 +354,4 @@ async def create_payment_intent(data: dict):
 @app.get("/dondestoy")
 def donde_estoy():
     return {"ruta_archivo": os.path.abspath(__file__)}
+
