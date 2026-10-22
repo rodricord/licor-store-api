@@ -1,11 +1,12 @@
 import os
 from datetime import datetime, timedelta, timezone
-from typing import List
+from typing import List, Optional
 from dotenv import load_dotenv
 
 # Carga de variables de entorno
 load_dotenv()
 
+import stripe
 from fastapi import FastAPI, Depends, HTTPException, status, File, UploadFile
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,6 +25,9 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
+
+# Configuración de Stripe (usando exclusivamente variable de entorno)
+stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 
 # Base de datos (Supabase)
 engine = create_engine(DATABASE_URL) 
@@ -99,6 +103,22 @@ class TokenResponse(BaseModel):
     rol: str
     mensaje: str
 
+class LicorCrear(BaseModel):
+    nombre: str
+    categoria: str
+    precio: float
+    stock: int
+    descripcion: Optional[str] = "Sin descripción disponible."
+    imagen_url: Optional[str] = ""
+
+class LicorActualizar(BaseModel):
+    nombre: str
+    categoria: str
+    precio: float
+    stock: int
+    descripcion: Optional[str] = "Sin descripción disponible."
+    imagen_url: Optional[str] = None
+
 # ==========================================
 # 4. INICIALIZACIÓN DE FASTAPI, CORS Y SEGURIDAD
 # ==========================================
@@ -112,11 +132,12 @@ origins = [
     "http://localhost:8000",
     "http://127.0.0.1:3000",
     "http://localhost:3000",
+    "https://rodricord.github.io"  # Agrega la URL de tu frontend si está en GitHub Pages
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],  # En producción puedes permitir todos temporalmente o especificar dominios
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -149,7 +170,6 @@ def obtener_usuario_actual(credentials: HTTPAuthorizationCredentials = Depends(s
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-# Middleware / Función helper para verificar roles requeridos
 def requerir_rol(roles_permitidos: List[str]):
     def rol_checker(usuario_actual: dict = Depends(obtener_usuario_actual)):
         rol_usuario = usuario_actual.get("rol", "cliente")
@@ -203,7 +223,6 @@ def login(usuario: UsuarioLogin, db: Session = Depends(get_db)):
             detail="Correo o contraseña incorrectos"
         )
 
-    # Garantizamos que el rol leido de Supabase sea siempre un string valido
     rol_usuario = str(db_usuario.rol) if db_usuario.rol else "cliente"
 
     access_token = create_access_token(
@@ -221,36 +240,11 @@ def login(usuario: UsuarioLogin, db: Session = Depends(get_db)):
         mensaje="Inicio de sesión exitoso"
     )
 
-from typing import Optional
-from pydantic import BaseModel
-
-
-# --- ESQUEMAS PYDANTIC PARA LICORES ---
-class LicorCrear(BaseModel):
-  nombre: str
-  categoria: str
-  precio: float
-  stock: int
-  descripcion: Optional[str] = "Sin descripción disponible."
-  imagen_url: Optional[str] = ""
-
-
-class LicorActualizar(BaseModel):
-  nombre: str
-  categoria: str
-  precio: float
-  stock: int
-  descripcion: Optional[str] = "Sin descripción disponible."
-  imagen_url: Optional[str] = None
-
-
 # --- RUTAS DE LICORES ---
-
 
 @app.get("/licores")
 def obtener_licores(db: Session = Depends(get_db)):
-  return db.query(Licor).all()
-
+    return db.query(Licor).all()
 
 @app.post("/licores", status_code=201)
 def crear_licor(
@@ -258,49 +252,45 @@ def crear_licor(
     db: Session = Depends(get_db),
     usuario_actual: dict = Depends(requerir_rol(["admin"])),
 ):
-  nuevo_licor = Licor(
-      nombre=licor_data.nombre,
-      categoria=licor_data.categoria,
-      precio=licor_data.precio,
-      stock=licor_data.stock,
-      descripcion=licor_data.descripcion,
-      imagen_url=licor_data.imagen_url,
-  )
-  db.add(nuevo_licor)
-  db.commit()
-  db.refresh(nuevo_licor)
-  return {
-      "mensaje": "Licor guardado en la base de datos con éxito",
-      "producto": nuevo_licor,
-  }
-
+    nuevo_licor = Licor(
+        nombre=licor_data.nombre,
+        categoria=licor_data.categoria,
+        precio=licor_data.precio,
+        stock=licor_data.stock,
+        descripcion=licor_data.descripcion,
+        imagen_url=licor_data.imagen_url,
+    )
+    db.add(nuevo_licor)
+    db.commit()
+    db.refresh(nuevo_licor)
+    return {
+        "mensaje": "Licor guardado en la base de datos con éxito",
+        "producto": nuevo_licor,
+    }
 
 @app.put("/licores/{licor_id}")
 def actualizar_licor(
     licor_id: int,
     licor_data: LicorActualizar,
     db: Session = Depends(get_db),
-    usuario_actual: dict = Depends(
-        requerir_rol(["admin", "supervisor"])
-    ),
+    usuario_actual: dict = Depends(requerir_rol(["admin", "supervisor"])),
 ):
-  licor = db.query(Licor).filter(Licor.id == licor_id).first()
+    licor = db.query(Licor).filter(Licor.id == licor_id).first()
 
-  if not licor:
-    raise HTTPException(status_code=404, detail="Licor no encontrado")
+    if not licor:
+        raise HTTPException(status_code=404, detail="Licor no encontrado")
 
-  licor.nombre = licor_data.nombre
-  licor.categoria = licor_data.categoria
-  licor.precio = licor_data.precio
-  licor.stock = licor_data.stock
-  licor.descripcion = licor_data.descripcion
-  licor.imagen_url = licor_data.imagen_url
+    licor.nombre = licor_data.nombre
+    licor.categoria = licor_data.categoria
+    licor.precio = licor_data.precio
+    licor.stock = licor_data.stock
+    licor.descripcion = licor_data.descripcion
+    licor.imagen_url = licor_data.imagen_url
 
-  db.commit()
-  db.refresh(licor)
+    db.commit()
+    db.refresh(licor)
 
-  return {"mensaje": "Licor actualizado con éxito", "licor": licor}
-
+    return {"mensaje": "Licor actualizado con éxito", "licor": licor}
 
 @app.delete("/licores/{licor_id}")
 def eliminar_licor(
@@ -308,37 +298,54 @@ def eliminar_licor(
     db: Session = Depends(get_db),
     usuario_actual: dict = Depends(requerir_rol(["admin"])),
 ):
-  licor = db.query(Licor).filter(Licor.id == licor_id).first()
+    licor = db.query(Licor).filter(Licor.id == licor_id).first()
 
-  if not licor:
-    raise HTTPException(status_code=404, detail="Licor no encontrado")
+    if not licor:
+        raise HTTPException(status_code=404, detail="Licor no encontrado")
 
-  db.delete(licor)
-  db.commit()
+    db.delete(licor)
+    db.commit()
 
-  return {"mensaje": f"Licor con ID {licor_id} eliminado con éxito"}
-
+    return {"mensaje": f"Licor con ID {licor_id} eliminado con éxito"}
 
 @app.post("/subir-imagen/")
 def subir_imagen(
     file: UploadFile = File(...),
-    usuario_actual: dict = Depends(
-        requerir_rol(["admin", "supervisor"])
-    ),
+    usuario_actual: dict = Depends(requerir_rol(["admin", "supervisor"])),
 ):
-  try:
-    file.file.seek(0)
-    resultado = cloudinary.uploader.upload(file.file, folder="licores")
-    return {
-        "mensaje": "Imagen subida con éxito",
-        "url": resultado.get("secure_url"),
-    }
-  except Exception as e:
-    raise HTTPException(
-    status_code=500, detail=f"Error al subir imagen: {str(e)}" 
-)
+    try:
+        file.file.seek(0)
+        resultado = cloudinary.uploader.upload(file.file, folder="licores")
+        return {
+            "mensaje": "Imagen subida con éxito",
+            "url": resultado.get("secure_url"),
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error al subir imagen: {str(e)}"
+        )
 
+# --- ENDPOINT DE CHECKOUT CON STRIPE ---
+
+@app.post("/api/checkout/create-intent")
+async def create_payment_intent(data: dict):
+    if not stripe.api_key:
+        raise HTTPException(
+            status_code=500, 
+            detail="Falta la variable de entorno STRIPE_SECRET_KEY en el servidor."
+        )
+    try:
+        monto_centavos = int(data['monto'] * 100)
+
+        intent = stripe.PaymentIntent.create(
+            amount=monto_centavos,
+            currency='usd',
+            payment_method_types=['card']
+        )
+        return {"clientSecret": intent.client_secret}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @app.get("/dondestoy")
 def donde_estoy():
-  return {"ruta_archivo": os.path.abspath(__file__)}
+    return {"ruta_archivo": os.path.abspath(__file__)}
