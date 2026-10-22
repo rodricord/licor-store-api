@@ -345,7 +345,7 @@ async def create_payment_intent(data: dict):
         intent = stripe.PaymentIntent.create(
             amount=monto_centavos,
             currency='usd',
-            payment_method_types=['card']
+            automatic_payment_methods={"enabled": True}
         )
         return {"clientSecret": intent.client_secret}
     except Exception as e:
