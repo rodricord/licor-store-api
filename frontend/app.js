@@ -1,26 +1,98 @@
 // URL de tu Backend alojado en Render
 const API_URL = "https://licor-store-api.onrender.com";
 
+// Configuración de Stripe (Reemplaza con tu clave pública de prueba si usas otra)
+const STRIPE_PUBLIC_KEY = "pk_test_51USm4dD6jo0C7QhKYLhydyA5i3YNQgjUz1f8TQR4xJrpUm6aue4YlkDK2sLN8o3BLqVnRbuiGyIgwiKO3C2kdCEB00NltclxK1"; // <-- PON TU CLAVE PUBLICA PK_TEST DE STRIPE
+let stripe = null;
+let cardElement = null;
+
+// Intentar inicializar Stripe
+if (window.Stripe) {
+    stripe = Stripe(STRIPE_PUBLIC_KEY);
+}
+
 // Referencias a los elementos del DOM
 const modalLogin = document.getElementById('modal-login');
 const modalRegister = document.getElementById('modal-register');
 const modalCart = document.getElementById('modal-cart');
+const modalCheckout = document.getElementById('modal-checkout');
+const modalImagePreview = document.getElementById('modal-image-preview');
 const liquorGrid = document.getElementById('liquor-grid');
 const loadingState = document.getElementById('loading-state');
 const totalItemsText = document.getElementById('total-items');
 const inputSearch = document.getElementById('input-search');
 
-let licoresGlobales = []; // Guardará el catálogo cargado para filtrado rápido
+// Estado global de la aplicación
+let licoresGlobales = []; 
+let carrito = JSON.parse(localStorage.getItem('carritoLicores')) || [];
 
-// Abrir y Cerrar Modales
+// ----------------------------------------------------
+// MANEJO DE MODALES Y NAVEGACIÓN
+// ----------------------------------------------------
 document.getElementById('btn-open-login')?.addEventListener('click', () => modalLogin?.classList.remove('hidden'));
 document.getElementById('btn-close-login')?.addEventListener('click', () => modalLogin?.classList.add('hidden'));
 
 document.getElementById('btn-open-register')?.addEventListener('click', () => modalRegister?.classList.remove('hidden'));
 document.getElementById('btn-close-register')?.addEventListener('click', () => modalRegister?.classList.add('hidden'));
 
-document.getElementById('btn-cart')?.addEventListener('click', () => modalCart?.classList.remove('hidden'));
+document.getElementById('btn-cart')?.addEventListener('click', () => {
+    renderizarCarrito();
+    modalCart?.classList.remove('hidden');
+});
 document.getElementById('btn-close-cart')?.addEventListener('click', () => modalCart?.classList.add('hidden'));
+
+document.getElementById('btn-close-checkout')?.addEventListener('click', () => modalCheckout?.classList.add('hidden'));
+
+// Evento Cerrar Modal de Vista Previa
+document.getElementById('btn-close-image-preview')?.addEventListener('click', cerrarVistaPreviaImagen);
+
+// ----------------------------------------------------
+// VISTA PREVIA ANIMADA DE IMAGEN (LIGHTBOX)
+// ----------------------------------------------------
+window.abrirVistaPreviaImagen = function(licorId) {
+    const licor = licoresGlobales.find(l => l.id === licorId);
+    if (!licor || !modalImagePreview) return;
+
+    const modalPreviewCard = document.getElementById('modal-preview-card');
+    const imgElement = document.getElementById('preview-modal-img');
+    const titleElement = document.getElementById('preview-modal-title');
+    const categoryElement = document.getElementById('preview-modal-category');
+    const priceElement = document.getElementById('preview-modal-price');
+
+    if (imgElement) imgElement.src = licor.imagen_url || 'https://images.unsplash.com/photo-1527281400683-1aae777175f8?q=80&w=400';
+    if (titleElement) titleElement.textContent = licor.nombre;
+    if (categoryElement) categoryElement.textContent = licor.categoria || 'Destilado';
+    if (priceElement) priceElement.textContent = `$${parseFloat(licor.precio).toFixed(2)}`;
+
+    modalImagePreview.classList.remove('hidden');
+
+    requestAnimationFrame(() => {
+        modalImagePreview.classList.remove('opacity-0');
+        modalImagePreview.classList.add('opacity-100');
+        
+        if (modalPreviewCard) {
+            modalPreviewCard.classList.remove('scale-90', 'opacity-0');
+            modalPreviewCard.classList.add('scale-100', 'opacity-100');
+        }
+    });
+};
+
+function cerrarVistaPreviaImagen() {
+    if (!modalImagePreview) return;
+    const modalPreviewCard = document.getElementById('modal-preview-card');
+
+    modalImagePreview.classList.remove('opacity-100');
+    modalImagePreview.classList.add('opacity-0');
+    
+    if (modalPreviewCard) {
+        modalPreviewCard.classList.remove('scale-100', 'opacity-100');
+        modalPreviewCard.classList.add('scale-90', 'opacity-0');
+    }
+
+    setTimeout(() => {
+        modalImagePreview.classList.add('hidden');
+    }, 300);
+}
 
 // ----------------------------------------------------
 // CARGAR Y RENDERIZAR CATÁLOGO DESDE RENDER
@@ -52,10 +124,6 @@ async function cargarCatalogo() {
 function renderizarLicores(lista) {
     if (!liquorGrid) return;
 
-    if (totalItemsText) {
-        totalItemsText.textContent = `${lista.length} producto(s) en existencia`;
-    }
-
     if (lista.length === 0) {
         liquorGrid.innerHTML = `
             <div class="col-span-full text-center py-12 text-stone-500 font-heavy uppercase tracking-widest text-sm">
@@ -69,16 +137,18 @@ function renderizarLicores(lista) {
     const userRole = userData.rol || 'cliente';
 
     liquorGrid.innerHTML = lista.map(licor => {
-        // Imagen por defecto si no existe en Cloudinary
         const imagenUrl = licor.imagen_url || 'https://images.unsplash.com/photo-1527281400683-1aae777175f8?q=80&w=400';
         
         return `
-            <div class="bg-barrel-card border border-barrel-border rounded-sm overflow-hidden flex flex-col justify-between hover:border-caterpillar-gold/50 transition-all duration-300 group shadow-xl">
+            <div class="bg-barrel-card/80 backdrop-blur-sm border border-barrel-border rounded-sm overflow-hidden flex flex-col justify-between hover:border-caterpillar-gold/50 transition-all duration-300 group shadow-xl">
                 <div>
-                    <div class="relative h-56 bg-stone-950/80 p-4 flex items-center justify-center overflow-hidden">
+                    <div onclick="abrirVistaPreviaImagen(${licor.id})" class="relative h-56 bg-stone-900/20 backdrop-blur-xs p-4 flex items-center justify-center overflow-hidden border-b border-stone-700/40 cursor-pointer group-hover:bg-stone-900/40 transition-all" title="Haz clic para ampliar la imagen">
                         <img src="${imagenUrl}" alt="${licor.nombre}" class="h-48 object-contain group-hover:scale-105 transition-transform duration-300 drop-shadow-[0_10px_15px_rgba(0,0,0,0.8)]">
-                        <span class="absolute top-2 left-2 bg-stone-900/90 border border-barrel-border text-caterpillar-gold text-[10px] font-heavy uppercase px-2 py-0.5 rounded-sm">
+                        <span class="absolute top-2 left-2 bg-stone-900/80 backdrop-blur-md border border-barrel-border text-caterpillar-gold text-[10px] font-heavy uppercase px-2 py-0.5 rounded-sm">
                             ${licor.categoria || 'Destilado'}
+                        </span>
+                        <span class="absolute bottom-2 right-2 bg-stone-950/80 text-stone-400 group-hover:text-caterpillar-gold text-[10px] px-1.5 py-0.5 rounded border border-stone-800 transition-colors">
+                            🔍 Ampliar
                         </span>
                     </div>
 
@@ -103,13 +173,13 @@ function renderizarLicores(lista) {
                         </span>
                     </div>
 
-                    <button class="w-full bg-stone-800 hover:bg-caterpillar-gold hover:text-black text-caterpillar-gold border border-caterpillar-gold/30 hover:border-caterpillar-gold font-heavy text-xs uppercase py-2.5 rounded-sm transition-all flex items-center justify-center gap-2">
-                        <span>Añadir a Carretilla</span>
+                    <button onclick="agregarAlCarrito(${licor.id})" ${licor.stock <= 0 ? 'disabled' : ''} class="w-full bg-stone-800/80 hover:bg-caterpillar-gold hover:text-black text-caterpillar-gold border border-caterpillar-gold/30 hover:border-caterpillar-gold font-heavy text-xs uppercase py-2.5 rounded-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                        <span>${licor.stock > 0 ? 'Añadir a Carretilla' : 'Agotado'}</span>
                     </button>
 
                     ${(userRole === 'admin' || userRole === 'supervisor') ? `
                         <div class="flex gap-2 pt-1 border-t border-stone-800">
-                            <button class="w-1/2 bg-stone-900 hover:bg-stone-800 text-stone-300 text-[10px] font-heavy uppercase py-1 border border-stone-700 rounded-sm">✏️ Editar</button>
+                            <button class="w-1/2 bg-stone-900/80 hover:bg-stone-800 text-stone-300 text-[10px] font-heavy uppercase py-1 border border-stone-700 rounded-sm">✏️ Editar</button>
                             ${userRole === 'admin' ? `
                                 <button class="w-1/2 bg-red-950/40 hover:bg-red-900/60 text-red-400 text-[10px] font-heavy uppercase py-1 border border-red-900/50 rounded-sm">🗑️ Eliminar</button>
                             ` : ''}
@@ -121,221 +191,258 @@ function renderizarLicores(lista) {
     }).join('');
 }
 
-// Búsqueda en vivo
+// Búsqueda en vivo con contador dinámico
 inputSearch?.addEventListener('input', (e) => {
-    const termino = e.target.value.toLowerCase();
+    const termino = e.target.value.trim().toLowerCase();
+    
+    if (termino === '') {
+        if (totalItemsText) totalItemsText.textContent = '';
+        renderizarLicores(licoresGlobales);
+        return;
+    }
+
     const filtrados = licoresGlobales.filter(l => 
         l.nombre.toLowerCase().includes(termino) || 
         (l.categoria && l.categoria.toLowerCase().includes(termino))
     );
+
+    if (totalItemsText) {
+        const total = filtrados.length;
+        totalItemsText.textContent = total === 1 ? `1 producto encontrado` : `${total} productos encontrados`;
+    }
+
     renderizarLicores(filtrados);
 });
 
-
 // ----------------------------------------------------
-// REGISTRO DE USUARIOS
+// LÓGICA DE LA CARRETILLA DE COMPRAS
 // ----------------------------------------------------
-document.getElementById('form-register')?.addEventListener('submit', async (e) => {
-    e.preventDefault();
+function agregarAlCarrito(licorId) {
+    const producto = licoresGlobales.find(l => l.id === licorId);
+    if (!producto) return;
 
-    const nombre = document.getElementById('reg-nombre').value;
-    const email = document.getElementById('reg-email').value;
-    const password = document.getElementById('reg-password').value;
+    const itemEnCarrito = carrito.find(item => item.id === licorId);
 
-    try {
-        const response = await fetch(`${API_URL}/api/auth/register`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ nombre, email, password })
+    if (itemEnCarrito) {
+        if (itemEnCarrito.cantidad < producto.stock) {
+            itemEnCarrito.cantidad++;
+        } else {
+            alert(`Límite alcanzado: solo hay ${producto.stock} unidades en stock.`);
+            return;
+        }
+    } else {
+        carrito.push({
+            id: producto.id,
+            nombre: producto.nombre,
+            precio: parseFloat(producto.precio),
+            imagen_url: producto.imagen_url,
+            stock: producto.stock,
+            cantidad: 1
         });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-            throw new Error(data.detail || 'Error al completar el registro.');
-        }
-
-        modalRegister.classList.add('hidden');
-        e.target.reset();
-        mostrarNotificacionExito(`¡Registro exitoso! Bienvenido, ${data.nombre || nombre}.`);
-
-    } catch (error) {
-        mostrarNotificacionError(error.message);
-    }
-});
-
-
-// ----------------------------------------------------
-// INICIO DE SESIÓN CON JWT Y MANEJO DE ROLES (RBAC)
-// ----------------------------------------------------
-document.getElementById('form-login')?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-
-    const email = document.getElementById('login-email').value;
-    const password = document.getElementById('login-password').value;
-
-    let errorBox = document.getElementById('modal-login-error');
-    if (!errorBox) {
-        errorBox = document.createElement('p');
-        errorBox.id = 'modal-login-error';
-        errorBox.className = 'text-red-500 text-xs text-center font-semibold mb-3 hidden transition-all';
-        const submitBtn = e.target.querySelector('button[type="submit"]');
-        if (submitBtn) e.target.insertBefore(errorBox, submitBtn);
-        else e.target.appendChild(errorBox);
     }
 
-    errorBox.classList.add('hidden');
-    errorBox.textContent = '';
+    guardarYActualizarCarrito();
+}
 
-    try {
-        const response = await fetch(`${API_URL}/api/auth/login`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password })
-        });
+function cambiarCantidad(licorId, delta) {
+    const item = carrito.find(i => i.id === licorId);
+    if (!item) return;
 
-        const data = await response.json().catch(() => ({}));
+    const nuevaCantidad = item.cantidad + delta;
 
-        if (!response.ok) {
-            const mensaje = (response.status === 401)
-                ? 'Correo o contraseña incorrectos.'
-                : (data.detail || 'Error al iniciar sesión.');
-            throw new Error(mensaje);
-        }
-
-        // GUARDAR DATOS EN LOCALSTORAGE SEGÚN LA RESPUESTA DE FASTAPI
-        if (data.access_token) {
-            localStorage.setItem('authToken', data.access_token);
-        }
-        
-        const nombreUsuario = email.split('@')[0];
-        const rolUsuario = data.rol || 'cliente'; // Capturamos 'admin', 'supervisor' o 'cliente'
-
-        localStorage.setItem('userData', JSON.stringify({
-            email: email,
-            nombre: nombreUsuario,
-            rol: rolUsuario
-        }));
-
-        modalLogin.classList.add('hidden');
-        e.target.reset();
-
-        actualizarEstadoSesion();
-        cargarCatalogo(); // Recargar catálogo para actualizar la UI según permisos del rol
-        mostrarNotificacionExito(`¡Bienvenido de nuevo, ${nombreUsuario}! (Rol: ${rolUsuario.toUpperCase()})`);
-
-    } catch (error) {
-        errorBox.textContent = `⚠️ ${error.message}`;
-        errorBox.classList.remove('hidden');
+    if (nuevaCantidad > item.stock) {
+        alert(`Solo hay ${item.stock} disponibles en existencia.`);
+        return;
     }
-});
 
+    if (nuevaCantidad <= 0) {
+        eliminarDelCarrito(licorId);
+        return;
+    }
 
-// ----------------------------------------------------
-// GESTIÓN DEL ESTADO DE LA SESIÓN EN EL FRONTEND
-// ----------------------------------------------------
-function actualizarEstadoSesion() {
-    const userData = JSON.parse(localStorage.getItem('userData'));
-    const btnLogin = document.getElementById('btn-open-login');
-    const btnRegister = document.getElementById('btn-open-register');
+    item.cantidad = nuevaCantidad;
+    guardarYActualizarCarrito();
+    renderizarCarrito();
+}
 
-    if (userData) {
-        if (btnLogin) {
-            btnLogin.outerHTML = `
-                <div class="relative inline-block text-left" id="user-menu-wrapper">
-                    <button id="btn-user-dropdown" class="flex items-center gap-2 text-caterpillar-gold font-heavy text-xs uppercase px-3 py-1.5 bg-stone-900 border border-caterpillar-gold/30 rounded-sm hover:border-caterpillar-gold transition-colors focus:outline-none">
-                        <span>👤 ${userData.nombre}</span>
-                        <span class="text-[10px] bg-caterpillar-gold/20 text-caterpillar-gold px-1.5 py-0.5 rounded border border-caterpillar-gold/40">${userData.rol.toUpperCase()}</span>
-                        <span class="text-[10px]">▼</span>
-                    </button>
-                    
-                    <div id="user-dropdown-menu" class="hidden absolute right-0 mt-2 w-48 bg-stone-900 border border-stone-800 rounded shadow-xl z-50 py-1">
-                        <div class="px-4 py-2 border-b border-stone-800">
-                            <p class="text-[10px] text-stone-400 uppercase font-bold">Sesión Activa (${userData.rol})</p>
-                            <p class="text-xs text-stone-200 truncate font-mono">${userData.email}</p>
-                        </div>
-                        <button id="btn-logout" class="w-full text-left px-4 py-2 text-xs text-red-400 hover:bg-stone-800 hover:text-red-300 transition-colors">
-                            Cerrar Sesión
-                        </button>
-                    </div>
+function eliminarDelCarrito(licorId) {
+    carrito = carrito.filter(item => item.id !== licorId);
+    guardarYActualizarCarrito();
+    renderizarCarrito();
+}
+
+function guardarYActualizarCarrito() {
+    localStorage.setItem('carritoLicores', JSON.stringify(carrito));
+    actualizarContadorCarrito();
+}
+
+function actualizarContadorCarrito() {
+    const cartCount = document.getElementById('cart-count');
+    const totalUnidades = carrito.reduce((acc, item) => acc + item.cantidad, 0);
+
+    if (cartCount) {
+        cartCount.textContent = totalUnidades;
+    }
+}
+
+function calcularTotalCarrito() {
+    return carrito.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
+}
+
+function renderizarCarrito() {
+    const cartItemsContainer = document.getElementById('cart-items');
+    const cartTotalElement = document.getElementById('cart-total');
+
+    if (!cartItemsContainer) return;
+
+    if (carrito.length === 0) {
+        cartItemsContainer.innerHTML = `
+            <div class="text-center py-8 text-raw-steel">
+                <p class="font-heavy uppercase text-sm">Tu carretilla está vacía.</p>
+            </div>
+        `;
+        if (cartTotalElement) cartTotalElement.textContent = '$0.00';
+        return;
+    }
+
+    cartItemsContainer.innerHTML = carrito.map(item => `
+        <div class="flex items-center justify-between bg-stone-950 p-3 rounded border border-stone-800">
+            <div class="flex items-center space-x-3">
+                <img src="${item.imagen_url || 'https://images.unsplash.com/photo-1527281400683-1aae777175f8?q=80&w=400'}" class="w-12 h-12 object-contain bg-stone-900 rounded">
+                <div>
+                    <h4 class="font-heavy text-white text-sm uppercase">${item.nombre}</h4>
+                    <p class="text-caterpillar-gold text-xs font-heavy">$${item.precio.toFixed(2)}</p>
                 </div>
-            `;
+            </div>
+            <div class="flex items-center space-x-2">
+                <button onclick="cambiarCantidad(${item.id}, -1)" class="px-2 py-0.5 bg-stone-800 text-white rounded text-xs font-bold hover:bg-stone-700">-</button>
+                <span class="text-xs text-white font-heavy px-1">${item.cantidad}</span>
+                <button onclick="cambiarCantidad(${item.id}, 1)" class="px-2 py-0.5 bg-stone-800 text-white rounded text-xs font-bold hover:bg-stone-700">+</button>
+                <button onclick="eliminarDelCarrito(${item.id})" class="text-red-400 hover:text-red-300 text-xs ml-2 font-bold">✕</button>
+            </div>
+        </div>
+    `).join('');
 
-            const dropdownBtn = document.getElementById('btn-user-dropdown');
-            const dropdownMenu = document.getElementById('user-dropdown-menu');
-
-            dropdownBtn?.addEventListener('click', (e) => {
-                e.stopPropagation();
-                dropdownMenu?.classList.toggle('hidden');
-            });
-
-            window.addEventListener('click', () => {
-                if (!dropdownMenu?.classList.contains('hidden')) {
-                    dropdownMenu?.classList.add('hidden');
-                }
-            });
-
-            document.getElementById('btn-logout')?.addEventListener('click', cerrarSesion);
-        }
-        if (btnRegister) btnRegister.style.display = 'none';
+    if (cartTotalElement) {
+        cartTotalElement.textContent = `$${calcularTotalCarrito().toFixed(2)}`;
     }
 }
 
-// Función para Cerrar Sesión
-function cerrarSesion() {
-    localStorage.removeItem('userData');
-    localStorage.removeItem('authToken');
-    mostrarNotificacionExito('Has cerrado sesión correctamente.');
+// ----------------------------------------------------
+// INTEGRACIÓN DE CHECKOUT CON STRIPE
+// ----------------------------------------------------
+document.getElementById('btn-checkout')?.addEventListener('click', () => {
+    if (carrito.length === 0) {
+        alert("Agrega al menos un producto a la carretilla.");
+        return;
+    }
+
+    modalCart?.classList.add('hidden');
+    modalCheckout?.classList.remove('hidden');
+
+    const total = calcularTotalCarrito();
+    document.getElementById('checkout-total-display').textContent = `$${total.toFixed(2)}`;
+
+    inicializarStripeCardElement();
+});
+
+function inicializarStripeCardElement() {
+    if (!stripe) {
+        console.error("Stripe.js no está cargado.");
+        return;
+    }
+
+    const elements = stripe.elements();
     
-    setTimeout(() => {
-        location.reload();
-    }, 1000);
+    // Si la tarjeta ya estaba creada, la desmontamos para evitar duplicados
+    if (cardElement) {
+        cardElement.destroy();
+    }
+
+    // Estilo personalizado adaptado a tu tema oscuro en Tailwind
+    const style = {
+        base: {
+            color: "#ffffff",
+            fontFamily: "Inter, sans-serif",
+            fontSmoothing: "antialiased",
+            fontSize: "14px",
+            "::placeholder": {
+                color: "#a1a1aa"
+            }
+        },
+        invalid: {
+            color: "#f87171",
+            iconColor: "#f87171"
+        }
+    };
+
+    cardElement = elements.create("card", { style: style, hidePostalCode: true });
+    cardElement.mount("#card-element");
+
+    cardElement.on('change', (event) => {
+        const displayError = document.getElementById('card-errors');
+        if (event.error) {
+            displayError.textContent = event.error.message;
+            displayError.classList.remove('hidden');
+        } else {
+            displayError.textContent = '';
+            displayError.classList.add('hidden');
+        }
+    });
 }
 
-// Comprobar la sesión y cargar productos al inicio
-document.addEventListener('DOMContentLoaded', () => {
-    actualizarEstadoSesion();
-    cargarCatalogo();
-});
+// Envío del Pago al Backend
+document.getElementById('payment-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
 
-// Tecla ESC y cierres de modal
-document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-        modalRegister?.classList.add('hidden');
-        modalLogin?.classList.add('hidden');
-        modalCart?.classList.add('hidden');
+    const btnSubmit = document.getElementById('btn-pay-submit');
+    btnSubmit.disabled = true;
+    btnSubmit.textContent = "Procesando...";
+
+    const montoTotal = calcularTotalCarrito();
+
+    try {
+        // 1. Petición al endpoint en Render
+        const res = await fetch(`${API_URL}/api/checkout/create-intent`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ monto: montoTotal })
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || "Error creando el intento de pago");
+
+        // 2. Confirmación con Stripe JS SDK
+        const result = await stripe.confirmCardPayment(data.clientSecret, {
+            payment_method: {
+                card: cardElement
+            }
+        });
+
+        if (result.error) {
+            const displayError = document.getElementById('card-errors');
+            displayError.textContent = result.error.message;
+            displayError.classList.remove('hidden');
+            btnSubmit.disabled = false;
+            btnSubmit.textContent = "Pagar con Tarjeta";
+        } else {
+            if (result.paymentIntent.status === 'succeeded') {
+                alert("¡Pago exitoso! Tu orden ha sido registrada.");
+                carrito = [];
+                guardarYActualizarCarrito();
+                modalCheckout?.classList.add('hidden');
+            }
+        }
+    } catch (err) {
+        alert(`Error al procesar la transacción: ${err.message}`);
+    } finally {
+        btnSubmit.disabled = false;
+        btnSubmit.textContent = "Pagar con Tarjeta";
     }
 });
 
-window.addEventListener('click', (e) => {
-    if (e.target === modalRegister) modalRegister.classList.add('hidden');
-    if (e.target === modalLogin) modalLogin.classList.add('hidden');
-    if (e.target === modalCart) modalCart.classList.add('hidden');
+// Inicialización
+document.addEventListener('DOMContentLoaded', () => {
+    cargarCatalogo();
+    actualizarContadorCarrito();
 });
-
-// Notificaciones Toast
-function mostrarNotificacionExito(mensaje) {
-    const toast = document.createElement('div');
-    toast.className = 'fixed top-5 right-5 z-50 bg-stone-900 border border-caterpillar-gold text-caterpillar-gold px-4 py-3 rounded shadow-lg text-sm font-semibold transition-all duration-300 transform translate-y-0 opacity-100 flex items-center gap-2';
-    toast.innerHTML = `<span>✓</span> <span>${mensaje}</span>`;
-
-    document.body.appendChild(toast);
-
-    setTimeout(() => {
-        toast.classList.add('opacity-0', '-translate-y-2');
-        setTimeout(() => toast.remove(), 300);
-    }, 3000);
-}
-
-function mostrarNotificacionError(mensaje) {
-    const toast = document.createElement('div');
-    toast.className = 'fixed top-5 right-5 z-50 bg-stone-900 border border-red-500 text-red-400 px-4 py-3 rounded shadow-lg text-sm font-semibold transition-all duration-300 transform translate-y-0 opacity-100 flex items-center gap-2';
-    toast.innerHTML = `<span>⚠️</span> <span>${mensaje}</span>`;
-
-    document.body.appendChild(toast);
-
-    setTimeout(() => {
-        toast.classList.add('opacity-0', '-translate-y-2');
-        setTimeout(() => toast.remove(), 300);
-    }, 4000);
-}

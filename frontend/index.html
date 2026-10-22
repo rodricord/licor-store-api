@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Likörkeller | Reserva de Destilados</title>
     
+    <!-- Stripe JS SDK -->
+    <script src="https://js.stripe.com/v3/"></script>
+    
     <!-- Tailwind CSS desde CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     
@@ -38,13 +41,22 @@
         /* Fondo Cava & Destilados — Likörkeller */
         .bg-barrel-texture {
             background-color: #1c1917;
+            position: relative;
+        }
+
+        /* Brillo y contraste únicamente al fondo con un seudoelemento */
+        .bg-barrel-texture::before {
+            content: '';
+            position: fixed;
+            inset: 0;
             background-image: 
                 linear-gradient(to bottom, rgba(12, 10, 9, 0.05), rgba(12, 10, 9, 0.15)),
                 url('https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?q=80&w=1920&auto=format&fit=crop');
             background-size: cover;
             background-position: center;
             background-attachment: fixed;
-            filter: brightness(1.70) contrast(1.10);
+            filter: brightness(1.20) contrast(1.05);
+            z-index: -1;
         }
     </style>
 </head>
@@ -66,7 +78,6 @@
 
             <!-- CONTROLES Y ACCESOS DE AUTENTICACIÓN / CARRITO -->
             <div class="flex items-center gap-3">
-                
                 <!-- BOTÓN INICIAR SESIÓN -->
                 <button id="btn-open-login" class="border border-barrel-border hover:border-caterpillar-gold text-raw-steel hover:text-white font-heavy text-xs uppercase px-3.5 py-2 rounded-sm transition-all duration-200">
                     Iniciar Sesión
@@ -83,11 +94,9 @@
                 <!-- BOTÓN CARRETILLA CON BOTELLA REFINADA -->
                 <button id="btn-cart" class="bg-caterpillar-gold hover:bg-caterpillar-gold-hover text-black font-heavy tracking-wider uppercase text-sm px-4 py-2.5 rounded-sm transition-all duration-200 flex items-center gap-2.5 shadow-lg">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <!-- Carretilla de compras -->
                         <circle cx="9" cy="21" r="1"></circle>
                         <circle cx="20" cy="21" r="1"></circle>
                         <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
-                        <!-- Botella bien definida dentro del carrito -->
                         <path d="M12 5v-2h2v2l1 2v4h-4V7l1-2z" fill="#0c0a09" stroke="currentColor" stroke-width="1.2"></path>
                     </svg>
                     <span class="hidden sm:inline">Añadir</span>
@@ -100,7 +109,6 @@
     <!-- HEADER / HERO -->
     <header class="relative border-b border-barrel-border bg-stone-950/70 py-12 px-4 md:py-16 backdrop-blur-sm">
         <div class="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-8">
-            
             <div class="text-center md:text-left space-y-4 max-w-xl">
                 <span class="inline-block bg-caterpillar-gold/20 text-caterpillar-gold border border-caterpillar-gold/40 text-xs uppercase font-heavy tracking-widest px-3 py-1 rounded-sm">
                     DESTACADO DE LA CAVA
@@ -127,12 +135,10 @@
 
             <div class="relative flex items-center justify-center w-full md:w-auto">
                 <div class="absolute w-48 h-48 sm:w-64 sm:h-64 bg-caterpillar-gold/20 rounded-full blur-3xl -z-10"></div>
-                
                 <img src="https://res.cloudinary.com/vojppavk/image/upload/v1789845284/donjulio1942.png" 
                      alt="Tequila Don Julio 1942" 
                      class="h-64 sm:h-80 object-contain drop-shadow-[0_20px_25px_rgba(0,0,0,0.9)] hover:scale-105 transition-transform duration-300">
             </div>
-
         </div>
     </header>
 
@@ -142,7 +148,7 @@
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 pb-4 border-b border-barrel-border bg-stone-950/40 p-4 rounded-sm backdrop-blur-sm">
             <div>
                 <h2 class="font-heavy text-2xl text-white uppercase tracking-wide">Catálogo Disponible</h2>
-                <p id="total-items" class="text-xs text-raw-steel">Consultando existencias...</p>
+                <p id="total-items" class="text-xs text-raw-steel"></p>
             </div>
             
             <!-- BUSCADOR -->
@@ -174,7 +180,6 @@
     <!-- MODAL CARRETILLA DE COMPRAS -->
     <div id="modal-cart" class="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
         <div class="bg-stone-900 border border-barrel-border w-full max-w-lg rounded-sm shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
-            <!-- HEADER MODAL -->
             <div class="bg-stone-950 px-6 py-4 border-b border-barrel-border flex justify-between items-center">
                 <h3 class="font-heavy text-xl text-white uppercase tracking-wider flex items-center gap-2">
                     <span>🛒 Tu Carretilla</span>
@@ -182,12 +187,10 @@
                 <button id="btn-close-cart" class="text-raw-steel hover:text-white text-xl font-bold">&times;</button>
             </div>
 
-            <!-- LISTA DE PRODUCTOS AGREGADOS -->
             <div id="cart-items" class="p-6 overflow-y-auto space-y-4 flex-1">
                 <!-- JavaScript inyectará los elementos agregados aquí -->
             </div>
 
-            <!-- FOOTER MODAL (TOTAL Y CHECKOUT) -->
             <div class="bg-stone-950 px-6 py-4 border-t border-barrel-border space-y-3">
                 <div class="flex justify-between items-center">
                     <span class="font-heavy text-raw-steel uppercase text-sm">Total a pagar:</span>
@@ -197,6 +200,34 @@
                     Finalizar Pedido
                 </button>
             </div>
+        </div>
+    </div>
+
+    <!-- MODAL STRIPE PAYMENT -->
+    <div id="modal-checkout" class="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-stone-900 border border-barrel-border w-full max-w-md rounded-sm shadow-2xl overflow-hidden flex flex-col">
+            <div class="bg-stone-950 px-6 py-4 border-b border-barrel-border flex justify-between items-center">
+                <h3 class="font-heavy text-xl text-white uppercase tracking-wider">💳 Checkout Seguro</h3>
+                <button id="btn-close-checkout" class="text-raw-steel hover:text-white text-xl font-bold">&times;</button>
+            </div>
+            
+            <form id="payment-form" class="p-6 space-y-4">
+                <div class="bg-stone-950/80 p-3 rounded border border-stone-800 text-center mb-2">
+                    <p class="text-xs text-raw-steel uppercase font-heavy">Monto a Pagar</p>
+                    <p id="checkout-total-display" class="text-2xl font-heavy text-caterpillar-gold">$0.00</p>
+                </div>
+
+                <!-- Contenedor dinámico de Stripe Elements -->
+                <div>
+                    <label class="block text-xs font-heavy uppercase text-raw-steel mb-1">Datos de Tarjeta (Test Mode)</label>
+                    <div id="card-element" class="bg-stone-950 border border-barrel-border p-3 rounded-sm"></div>
+                    <div id="card-errors" class="text-red-400 text-xs mt-1 font-semibold hidden"></div>
+                </div>
+
+                <button type="submit" id="btn-pay-submit" class="w-full bg-caterpillar-gold hover:bg-caterpillar-gold-hover text-black font-heavy uppercase text-sm py-3 rounded-sm transition-all mt-4">
+                    Pagar con Tarjeta
+                </button>
+            </form>
         </div>
     </div>
 
@@ -247,6 +278,25 @@
                     Crear Cuenta
                 </button>
             </form>
+        </div>
+    </div>
+
+    <!-- MODAL VISTA PREVIA DE IMAGEN (LIGHTBOX ANIMADO) -->
+    <div id="modal-image-preview" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center hidden p-4 sm:p-6 opacity-0 transition-opacity duration-300 ease-out">
+        <div id="modal-preview-card" class="relative bg-stone-900 border border-caterpillar-gold/40 rounded-sm max-w-3xl w-full p-6 sm:p-8 shadow-2xl flex flex-col items-center transform scale-90 opacity-0 transition-all duration-300 ease-out">
+            <button id="btn-close-image-preview" class="absolute top-3 right-3 text-stone-400 hover:text-caterpillar-gold font-bold text-xl px-3 py-1 transition-colors z-10">
+                ✕
+            </button>
+            
+            <div class="w-full h-[30rem] sm:h-[34rem] flex items-center justify-center p-4 bg-stone-950/60 rounded border border-stone-800/80 overflow-hidden">
+                <img id="preview-modal-img" src="" alt="Vista Previa" class="max-h-full max-w-full object-contain drop-shadow-[0_20px_35px_rgba(0,0,0,0.95)]">
+            </div>
+
+            <div class="mt-5 text-center space-y-1 w-full">
+                <span id="preview-modal-category" class="text-xs bg-caterpillar-gold/20 text-caterpillar-gold border border-caterpillar-gold/30 uppercase px-2.5 py-0.5 font-heavy rounded-sm"></span>
+                <h3 id="preview-modal-title" class="text-2xl font-heavy text-white uppercase tracking-wide mt-2"></h3>
+                <p id="preview-modal-price" class="text-caterpillar-gold font-heavy text-xl"></p>
+            </div>
         </div>
     </div>
 
