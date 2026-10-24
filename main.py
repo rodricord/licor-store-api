@@ -355,3 +355,16 @@ async def create_payment_intent(data: dict):
 def donde_estoy():
     return {"ruta_archivo": os.path.abspath(__file__)}
 
+# Ejemplo de inserción en FastAPI
+@app.post("/api/checkout/guardar-pedido")
+async def guardar_pedido(datos: dict):
+    try:
+        respuesta = supabase.table("pedidos").insert({
+            "stripe_payment_id": datos.get("payment_intent_id"),
+            "monto": datos.get("monto"),
+            "estado": "completado"
+        }).execute()
+        return {"status": "ok", "pedido": respuesta.data}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+

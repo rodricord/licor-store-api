@@ -1,8 +1,8 @@
 // URL de tu Backend alojado en Render
 const API_URL = "https://licor-store-api.onrender.com";
 
-// Configuración de Stripe (Reemplaza con tu clave pública de prueba si usas otra)
-const STRIPE_PUBLIC_KEY = "pk_test_51USm4dD6jo0C7QhKYLhydyA5i3YNQgjUz1f8TQR4xJrpUm6aue4YlkDK2sLN8o3BLqVnRbuiGyIgwiKO3C2kdCEB00NltclxK1"; // <-- PON TU CLAVE PUBLICA PK_TEST DE STRIPE
+// Configuración de Stripe
+const STRIPE_PUBLIC_KEY = "pk_test_51USm4dD6jo0C7QhKYLhydyA5i3YNQgjUz1f8TQR4xJrpUm6aue4YlkDK2sLN8o3BLqVnRbuiGyIgwiKO3C2kdCEB00NltclxK1"; 
 let stripe = null;
 let cardElement = null;
 
@@ -16,6 +16,7 @@ const modalLogin = document.getElementById('modal-login');
 const modalRegister = document.getElementById('modal-register');
 const modalCart = document.getElementById('modal-cart');
 const modalCheckout = document.getElementById('modal-checkout');
+const modalSuccess = document.getElementById('payment-success-modal');
 const modalImagePreview = document.getElementById('modal-image-preview');
 const liquorGrid = document.getElementById('liquor-grid');
 const loadingState = document.getElementById('loading-state');
@@ -42,6 +43,11 @@ document.getElementById('btn-cart')?.addEventListener('click', () => {
 document.getElementById('btn-close-cart')?.addEventListener('click', () => modalCart?.classList.add('hidden'));
 
 document.getElementById('btn-close-checkout')?.addEventListener('click', () => modalCheckout?.classList.add('hidden'));
+
+// Evento Cerrar Modal de Comprobante Exitoso
+document.getElementById('close-success-modal-btn')?.addEventListener('click', () => {
+    modalSuccess?.classList.add('hidden');
+});
 
 // Evento Cerrar Modal de Vista Previa
 document.getElementById('btn-close-image-preview')?.addEventListener('click', cerrarVistaPreviaImagen);
@@ -354,12 +360,10 @@ function inicializarStripeCardElement() {
 
     const elements = stripe.elements();
     
-    // Si la tarjeta ya estaba creada, la desmontamos para evitar duplicados
     if (cardElement) {
         cardElement.destroy();
     }
 
-    // Estilo personalizado adaptado a tu tema oscuro en Tailwind
     const style = {
         base: {
             color: "#ffffff",
@@ -427,10 +431,22 @@ document.getElementById('payment-form')?.addEventListener('submit', async (e) =>
             btnSubmit.textContent = "Pagar con Tarjeta";
         } else {
             if (result.paymentIntent.status === 'succeeded') {
-                alert("¡Pago exitoso! Tu orden ha sido registrada.");
+                // Ocultar modal de checkout
+                modalCheckout?.classList.add('hidden');
+
+                // Inyectar valores dinámicos en el Comprobante Estético
+                const receiptTotal = document.getElementById('receipt-total');
+                const receiptId = document.getElementById('receipt-id');
+
+                if (receiptTotal) receiptTotal.textContent = `$${montoTotal.toFixed(2)}`;
+                if (receiptId) receiptId.textContent = result.paymentIntent.id;
+
+                // Vaciar carrito
                 carrito = [];
                 guardarYActualizarCarrito();
-                modalCheckout?.classList.add('hidden');
+
+                // Mostrar modal de comprobante de éxito
+                modalSuccess?.classList.remove('hidden');
             }
         }
     } catch (err) {
