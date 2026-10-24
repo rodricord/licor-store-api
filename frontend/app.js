@@ -406,7 +406,7 @@ document.getElementById('payment-form')?.addEventListener('submit', async (e) =>
     const montoTotal = calcularTotalCarrito();
 
     try {
-        // 1. Petición al endpoint en Render
+        // 1. Petición al endpoint en Render para crear el Payment Intent
         const res = await fetch(`${API_URL}/api/checkout/create-intent`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -431,6 +431,22 @@ document.getElementById('payment-form')?.addEventListener('submit', async (e) =>
             btnSubmit.textContent = "Pagar con Tarjeta";
         } else {
             if (result.paymentIntent.status === 'succeeded') {
+
+                // 3. Registrar el pedido en Supabase a través del backend
+                try {
+                    await fetch(`${API_URL}/api/checkout/guardar-pedido`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            payment_intent_id: result.paymentIntent.id,
+                            monto: montoTotal
+                        })
+                    });
+                    console.log("Pedido guardado exitosamente en Supabase.");
+                } catch (dbError) {
+                    console.error("Error guardando el pedido en Supabase:", dbError);
+                }
+
                 // Ocultar modal de checkout
                 modalCheckout?.classList.add('hidden');
 
