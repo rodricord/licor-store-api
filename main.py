@@ -332,24 +332,25 @@ def subir_imagen(
 
 # --- ENDPOINT DE CHECKOUT CON STRIPE ---
 
-@app.post("/api/checkout/create-intent")
-async def create_payment_intent(data: dict):
-    if not stripe.api_key:
-        raise HTTPException(
-            status_code=500, 
-            detail="Falta la variable de entorno STRIPE_SECRET_KEY en el servidor."
-        )
-    try:
-        monto_centavos = int(data['monto'] * 100)
+from pydantic import BaseModel
 
-        intent = stripe.PaymentIntent.create(
-            amount=monto_centavos,
-            currency='usd',
-            automatic_payment_methods={"enabled": True}
-        )
-        return {"clientSecret": intent.client_secret}
+# 1. Definir el modelo de datos que enviará el frontend
+class PedidoSchema(BaseModel):
+    payment_intent_id: str
+    monto: float
+
+# 2. Endpoint corregido para recibir el esquema
+@app.post("/api/checkout/guardar-pedido")
+async def guardar_pedido(datos: PedidoSchema):
+    try:
+        respuesta = supabase.table("pedidos").insert({
+            "stripe_payment_id": datos.payment_intent_id,
+            "monto": datos.monto,
+            "estado": "completado"
+        }).execute()
+        return {"status": "ok", "pedido": respuesta.data}
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/dondestoy")
 def donde_estoy():
