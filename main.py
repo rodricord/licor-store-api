@@ -10,9 +10,9 @@ import stripe
 from fastapi import FastAPI, Depends, HTTPException, status, File, UploadFile
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 import bcrypt
 import jwt
 import cloudinary
@@ -26,7 +26,7 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
 
-# Configuración de Stripe (usando exclusivamente variable de entorno)
+# Configuración de Stripe
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 
 # Base de datos (Supabase)
@@ -88,6 +88,15 @@ class Usuario(Base):
     hashed_password = Column(String, nullable=False)
     rol = Column(String, default="cliente", nullable=False)
 
+class Pedido(Base):
+    __tablename__ = "pedidos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    stripe_payment_id = Column(String, nullable=False)
+    monto = Column(Float, nullable=False)
+    estado = Column(String, default="completado")
+    creado_en = Column(DateTime, default=datetime.utcnow)
+
 Base.metadata.create_all(bind=engine)
 
 # ==========================================
@@ -124,25 +133,18 @@ class LicorActualizar(BaseModel):
     descripcion: Optional[str] = "Sin descripción disponible."
     imagen_url: Optional[str] = None
 
+class PedidoCreate(BaseModel):
+    payment_intent_id: str
+    monto: float
+
 # ==========================================
 # 4. INICIALIZACIÓN DE FASTAPI, CORS Y SEGURIDAD
 # ==========================================
 app = FastAPI(title="Liquor Store API - Módulo Catálogo")
 
-# Configuración de CORS
-origins = [
-    "http://127.0.0.1:5500",
-    "http://localhost:5500",
-    "http://127.0.0.1:8000",
-    "http://localhost:8000",
-    "http://127.0.0.1:3000",
-    "http://localhost:3000",
-    "https://rodricord.github.io"  # Agrega la URL de tu frontend si está en GitHub Pages
-]
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # En producción puedes permitir todos temporalmente o especificar dominios
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -330,7 +332,7 @@ def subir_imagen(
             status_code=500, detail=f"Error al subir imagen: {str(e)}"
         )
 
-# --- ENDPOINT DE CHECKOUT CON STRIPE ---
+# --- ENDPOINTS DE CHECKOUT Y PEDIDOS (STRIPE & SUPABASE) ---
 
 @app.post("/api/checkout/create-intent")
 async def create_payment_intent(data: dict):
@@ -351,7 +353,22 @@ async def create_payment_intent(data: dict):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+@app.post("/api/checkout/guardar-pedido", status_code=201)
+def guardar_pedido(datos: PedidoCreate, db: Session = Depends(get_db)):
+    try:
+        nuevo_pedido = Pedido(
+            stripe_payment_id=datos.payment_intent_id,
+            monto=datos.monto,
+            estado="completado"
+        )
+        db.add(nuevo_pedido)
+        db.commit()
+        db.refresh(nuevo_pedido)
+        return {"status": "ok", "mensaje": "Pedido registrado exitosamente", "id": nuevo_pedido.id}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error al guardar pedido en Supabase: {str(e)}")
+
 @app.get("/dondestoy")
 def donde_estoy():
     return {"ruta_archivo": os.path.abspath(__file__)}
-
